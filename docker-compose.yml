@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: labos
+      POSTGRES_USER: labos
+      POSTGRES_PASSWORD: labos
+    ports:
+      - "5432:5432"
+    volumes:
+      - labos-postgres:/var/lib/postgresql/data
+
+volumes:
+  labos-postgres:
