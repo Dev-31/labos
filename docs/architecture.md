@@ -12,6 +12,21 @@ LabOS is a policy-first control plane for isolated labs.
 - snapshots
 - export gate
 
+## Core domain vocabulary
+- `Profile` defines the allowed runtime, network, filesystem, persistence, approval, and export posture.
+- `Lab` is the governed execution environment created from a profile.
+- `Run` is a supervised execution inside a lab.
+- `ApprovalRequest`, `Snapshot`, `ExportRequest`, `AuditEvent`, `SecretLease`, and `SchedulerJob` are first-class records, not ad hoc side channels.
+
+## Lifecycle states
+- lab states: `requested`, `pending_approval`, `approved`, `provisioning`, `running`, `stopped`, `failed`, `destroying`, `destroyed`, `archived`
+- run states: `queued`, `starting`, `running`, `completed`, `failed`, `cancelled`, `timed_out`
+- approval states: `requested`, `approved`, `rejected`, `expired`
+- export states: `requested`, `quarantined`, `approved`, `released`, `rejected`
+- snapshot states: `pending`, `created`, `failed`, `restored`
+
+These states are explicit so policy, storage, runtime, and API layers can share the same lifecycle contract.
+
 ## Product boundaries
 - public core platform only
 - no private datasets, profiles, or strategy packs in this repo
