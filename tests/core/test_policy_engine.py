@@ -93,6 +93,26 @@ def test_request_defaults_to_empty_secret_set() -> None:
     )
 
     assert decision.injected_secrets == []
+    assert decision.approval_reasons == ()
+
+
+def test_request_decision_exposes_enforceable_execution_plan() -> None:
+    engine = PolicyEngine()
+
+    decision = engine.validate_request(
+        profile_name="research-persistent",
+        requested_overrides={},
+        requester_type="scheduler",
+    )
+
+    assert decision.profile_name == "research-persistent"
+    assert decision.persistence_mode is PersistenceMode.PERSISTENT
+    assert decision.export_mode is ExportMode.APPROVAL
+    assert decision.retention_days == 30
+    assert decision.approval_required is True
+    assert decision.approval_reasons == (
+        "non-human requesters need approval for high-risk profiles",
+    )
 
 
 def test_request_rejects_host_environment_inheritance() -> None:
@@ -109,9 +129,63 @@ def test_request_rejects_host_environment_inheritance() -> None:
 def test_request_rejects_network_override() -> None:
     engine = PolicyEngine()
 
-    with pytest.raises(ValueError, match="network mode is fixed by profile"):
+    with pytest.raises(ValueError, match="network_mode is fixed by profile"):
         engine.validate_request(
             profile_name="safe-dev",
             requested_overrides={"network_mode": "allow-all"},
             requester_type="human",
+        )
+
+
+def test_request_rejects_persistence_override() -> None:
+    engine = PolicyEngine()
+
+    with pytest.raises(ValueError, match="persistence_mode is fixed by profile"):
+        engine.validate_request(
+            profile_name="safe-dev",
+            requested_overrides={"persistence_mode": "persistent"},
+            requester_type="human",
+        )
+
+
+def test_request_rejects_resource_override() -> None:
+    engine = PolicyEngine()
+
+    with pytest.raises(ValueError, match="cpu_limit is fixed by profile"):
+        engine.validate_request(
+            profile_name="safe-dev",
+            requested_overrides={"cpu_limit": 99},
+            requester_type="human",
+        )
+
+
+def test_request_rejects_secret_not_allowed_by_profile() -> None:
+    engine = PolicyEngine()
+
+    with pytest.raises(ValueError, match="requested secrets are not allowed by profile"):
+        engine.validate_request(
+            profile_name="safe-dev",
+            requested_overrides={"secrets": ["OPENAI_API_KEY"]},
+            requester_type="human",
+        )
+
+
+def test_profile_validation_rejects_high_risk_without_export_approval() -> None:
+    with pytest.raises(ValidationError, match="high-risk profiles must require export approval"):
+        Profile(
+            name="unsafe-research",
+            runtime_class=RuntimeClass.CONTAINER,
+            risk_class=RiskClass.HIGH,
+            network_mode=NetworkMode.RESTRICTED,
+            filesystem_mode=FilesystemMode.MANAGED,
+            persistence_mode=PersistenceMode.PERSISTENT,
+            export_mode=ExportMode.REQUEST,
+            cpu_limit=4,
+            memory_mb=4096,
+            disk_mb=8192,
+            max_runtime_minutes=90,
+            approval_on_start=False,
+            approval_on_export=False,
+            audit_level=AuditLevel.DETAILED,
+            retention_days=14,
         )

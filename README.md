@@ -31,6 +31,7 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 - `docs/architecture.md`
 - `docs/threat-model.md`
 - `docs/repo-sources.md`
+- `docs/policies.md`
 - `ROADMAP.md`
 
 ## Built-in policy profiles

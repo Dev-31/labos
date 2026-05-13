@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from labos.config.profiles.base import DEFAULT_PROFILES
 from labos.core.enums import AuditLevel
 from labos.core.policy_models import (
+    ExportMode,
     FilesystemMode,
     NetworkMode,
     PersistenceMode,
@@ -24,15 +25,18 @@ class RequestDecision:
     network_mode: NetworkMode
     filesystem_mode: FilesystemMode
     persistence_mode: PersistenceMode
+    export_mode: ExportMode
     cpu_limit: int
     memory_mb: int
     disk_mb: int
     max_runtime_minutes: int
     approval_required: bool
+    approval_reasons: tuple[str, ...]
     risk_class: RiskClass
     injected_secrets: list[str]
     host_mounts_allowed: bool
     audit_level: AuditLevel
+    retention_days: int
 
 
 @dataclass(frozen=True)
@@ -55,6 +59,22 @@ class PolicyEngine:
         except KeyError as exc:
             raise KeyError(f"unknown profile: {name}") from exc
 
+    def _normalize_expected_value(self, value: object) -> object:
+        return getattr(value, "value", value)
+
+    def _enforce_profile_locked_field(
+        self,
+        field_name: str,
+        requested_overrides: dict[str, object],
+        expected_value: object,
+    ) -> None:
+        if field_name not in requested_overrides:
+            return
+
+        normalized_expected = self._normalize_expected_value(expected_value)
+        if requested_overrides[field_name] != normalized_expected:
+            raise ValueError(f"{field_name} is fixed by profile")
+
     def validate_request(
         self,
         profile_name: str,
@@ -73,10 +93,51 @@ class PolicyEngine:
                 "host mounts are forbidden unless the profile explicitly allows them"
             )
 
-        if "network_mode" in requested_overrides:
-            requested_network_mode = requested_overrides["network_mode"]
-            if requested_network_mode != profile.network_mode.value:
-                raise ValueError("network mode is fixed by profile")
+        self._enforce_profile_locked_field(
+            field_name="network_mode",
+            requested_overrides=requested_overrides,
+            expected_value=profile.network_mode,
+        )
+        self._enforce_profile_locked_field(
+            field_name="runtime_class",
+            requested_overrides=requested_overrides,
+            expected_value=profile.runtime_class,
+        )
+        self._enforce_profile_locked_field(
+            field_name="filesystem_mode",
+            requested_overrides=requested_overrides,
+            expected_value=profile.filesystem_mode,
+        )
+        self._enforce_profile_locked_field(
+            field_name="persistence_mode",
+            requested_overrides=requested_overrides,
+            expected_value=profile.persistence_mode,
+        )
+        self._enforce_profile_locked_field(
+            field_name="export_mode",
+            requested_overrides=requested_overrides,
+            expected_value=profile.export_mode,
+        )
+        self._enforce_profile_locked_field(
+            field_name="cpu_limit",
+            requested_overrides=requested_overrides,
+            expected_value=profile.cpu_limit,
+        )
+        self._enforce_profile_locked_field(
+            field_name="memory_mb",
+            requested_overrides=requested_overrides,
+            expected_value=profile.memory_mb,
+        )
+        self._enforce_profile_locked_field(
+            field_name="disk_mb",
+            requested_overrides=requested_overrides,
+            expected_value=profile.disk_mb,
+        )
+        self._enforce_profile_locked_field(
+            field_name="max_runtime_minutes",
+            requested_overrides=requested_overrides,
+            expected_value=profile.max_runtime_minutes,
+        )
 
         requested_secrets = requested_overrides.get("secrets", [])
         if not isinstance(requested_secrets, list):
@@ -86,12 +147,14 @@ class PolicyEngine:
             secret_list = ", ".join(unknown_secrets)
             raise ValueError(f"requested secrets are not allowed by profile: {secret_list}")
 
-        approval_required = profile.approval_on_start
+        approval_reasons: list[str] = []
+        if profile.approval_on_start:
+            approval_reasons.append("profile requires start approval")
         if requester is not RequesterType.HUMAN and profile.risk_class in {
             RiskClass.HIGH,
             RiskClass.CRITICAL,
         }:
-            approval_required = True
+            approval_reasons.append("non-human requesters need approval for high-risk profiles")
 
         return RequestDecision(
             profile_name=profile.name,
@@ -99,15 +162,18 @@ class PolicyEngine:
             network_mode=profile.network_mode,
             filesystem_mode=profile.filesystem_mode,
             persistence_mode=profile.persistence_mode,
+            export_mode=profile.export_mode,
             cpu_limit=profile.cpu_limit,
             memory_mb=profile.memory_mb,
             disk_mb=profile.disk_mb,
             max_runtime_minutes=profile.max_runtime_minutes,
-            approval_required=approval_required,
+            approval_required=bool(approval_reasons),
+            approval_reasons=tuple(approval_reasons),
             risk_class=profile.risk_class,
             injected_secrets=requested_secrets,
             host_mounts_allowed=profile.allow_host_mounts,
             audit_level=profile.audit_level,
+            retention_days=profile.retention_days,
         )
 
     def validate_export(self, profile_name: str, export_path: str) -> ExportDecision:
