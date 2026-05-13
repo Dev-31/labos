@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    """Shared declarative base for durable LabOS metadata."""
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class TimestampedRow:
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+
+class LabRow(TimestampedRow, Base):
+    __tablename__ = "labs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    profile_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    runtime_class: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class RunRow(TimestampedRow, Base):
+    __tablename__ = "runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lab_id: Mapped[str] = mapped_column(ForeignKey("labs.id", ondelete="CASCADE"), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    command: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class ApprovalRow(TimestampedRow, Base):
+    __tablename__ = "approvals"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lab_id: Mapped[str | None] = mapped_column(
+        ForeignKey("labs.id", ondelete="SET NULL"), nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class ExportRow(TimestampedRow, Base):
+    __tablename__ = "exports"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lab_id: Mapped[str] = mapped_column(ForeignKey("labs.id", ondelete="CASCADE"), nullable=False)
+    source_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class SnapshotRow(TimestampedRow, Base):
+    __tablename__ = "snapshots"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lab_id: Mapped[str] = mapped_column(ForeignKey("labs.id", ondelete="CASCADE"), nullable=False)
+    backend_ref: Mapped[str] = mapped_column(String(512), nullable=False)
+
+
+class EventRow(TimestampedRow, Base):
+    __tablename__ = "events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lab_id: Mapped[str | None] = mapped_column(
+        ForeignKey("labs.id", ondelete="SET NULL"), nullable=True
+    )
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("runs.id", ondelete="SET NULL"), nullable=True
+    )
+    event_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)

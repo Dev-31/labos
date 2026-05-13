@@ -20,9 +20,10 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 ## Quickstart
 1. Install dependencies: `uv sync --extra dev`
 2. Start local Postgres: `docker compose up -d postgres`
-3. Run the test suite: `uv run pytest`
-4. Start the API: `uv run uvicorn labos.api.app:app --reload`
-5. Check health: `curl http://127.0.0.1:8000/health`
+3. Apply the initial metadata schema: `uv run alembic upgrade head`
+4. Run the test suite: `uv run pytest`
+5. Start the API: `uv run uvicorn labos.api.app:app --reload`
+6. Check health: `curl http://127.0.0.1:8000/health`
 
 ## Current docs
 - `docs/specs/2026-05-13-labos-design.md`
@@ -39,3 +40,8 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 - `red-zone`
 
 Operator-facing YAML examples live in `examples/profiles/`.
+
+## Database and migrations
+- SQLAlchemy models for labs, runs, approvals, exports, snapshots, and audit events live in `labos/db/schema.py`.
+- Alembic migration scaffolding lives in `alembic/` with the initial schema in `alembic/versions/`.
+- The default database URL is documented in `.env.example`.

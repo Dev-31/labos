@@ -36,6 +36,11 @@ LabOS is a policy-first control plane for isolated labs.
 
 These states are explicit so policy, storage, runtime, and API layers can share the same lifecycle contract.
 
+## Durable metadata
+- SQLAlchemy is the Phase 1 metadata layer.
+- Core durable tables are `labs`, `runs`, `approvals`, `exports`, `snapshots`, and `events`.
+- Alembic manages schema evolution so the control plane can move without hand-edited database drift.
+
 ## Product boundaries
 - public core platform only
 - no private datasets, profiles, or strategy packs in this repo
