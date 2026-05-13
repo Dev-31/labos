@@ -31,3 +31,11 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 - `docs/threat-model.md`
 - `docs/repo-sources.md`
 - `ROADMAP.md`
+
+## Built-in policy profiles
+- `safe-dev`
+- `model-local`
+- `research-persistent`
+- `red-zone`
+
+Operator-facing YAML examples live in `examples/profiles/`.

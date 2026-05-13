@@ -1,0 +1,17 @@
+name: safe-dev
+runtime_class: container
+risk_class: low
+network_mode: restricted
+filesystem_mode: managed
+persistence_mode: ephemeral
+export_mode: request
+cpu_limit: 2
+memory_mb: 2048
+disk_mb: 8192
+max_runtime_minutes: 60
+approval_on_start: false
+approval_on_export: false
+audit_level: basic
+retention_days: 3
+allow_host_mounts: false
+allowed_secret_names: []

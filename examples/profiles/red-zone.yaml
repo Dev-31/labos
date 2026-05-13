@@ -1,0 +1,17 @@
+name: red-zone
+runtime_class: microvm
+risk_class: critical
+network_mode: deny
+filesystem_mode: read-only-root
+persistence_mode: ephemeral
+export_mode: approval
+cpu_limit: 4
+memory_mb: 4096
+disk_mb: 16384
+max_runtime_minutes: 120
+approval_on_start: true
+approval_on_export: true
+audit_level: forensic
+retention_days: 7
+allow_host_mounts: false
+allowed_secret_names: []

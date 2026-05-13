@@ -1,0 +1,17 @@
+name: model-local
+runtime_class: container
+risk_class: medium
+network_mode: restricted
+filesystem_mode: managed
+persistence_mode: persistent
+export_mode: request
+cpu_limit: 4
+memory_mb: 8192
+disk_mb: 51200
+max_runtime_minutes: 480
+approval_on_start: false
+approval_on_export: true
+audit_level: detailed
+retention_days: 14
+allow_host_mounts: false
+allowed_secret_names: []

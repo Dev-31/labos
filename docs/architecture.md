@@ -18,6 +18,15 @@ LabOS is a policy-first control plane for isolated labs.
 - `Run` is a supervised execution inside a lab.
 - `ApprovalRequest`, `Snapshot`, `ExportRequest`, `AuditEvent`, `SecretLease`, and `SchedulerJob` are first-class records, not ad hoc side channels.
 
+## Policy evaluation
+- Profiles are validated against explicit policy enums instead of free-form strings.
+- Risk classes are explicit: `low`, `medium`, `high`, `critical`.
+- Profile evaluation returns an execution plan with runtime class, network mode, filesystem mode, persistence mode, resource limits, audit level, approval requirements, and the injected secret set.
+- Host mounts are forbidden unless a profile explicitly allows them.
+- The default secret set is empty.
+- Network mode is fixed by profile and cannot be widened through request overrides.
+- High-risk and critical exports are deny-until-reviewed: managed export path required plus quarantine/approval before release.
+
 ## Lifecycle states
 - lab states: `requested`, `pending_approval`, `approved`, `provisioning`, `running`, `stopped`, `failed`, `destroying`, `destroyed`, `archived`
 - run states: `queued`, `starting`, `running`, `completed`, `failed`, `cancelled`, `timed_out`

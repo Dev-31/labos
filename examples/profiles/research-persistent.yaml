@@ -1,0 +1,17 @@
+name: research-persistent
+runtime_class: container
+risk_class: high
+network_mode: restricted
+filesystem_mode: managed
+persistence_mode: persistent
+export_mode: approval
+cpu_limit: 8
+memory_mb: 16384
+disk_mb: 102400
+max_runtime_minutes: 4320
+approval_on_start: false
+approval_on_export: true
+audit_level: forensic
+retention_days: 30
+allow_host_mounts: false
+allowed_secret_names: []
