@@ -630,12 +630,12 @@ An operator can create, inspect, run, snapshot, export, approve, and destroy fro
 - [x] Add `labs create`.
 - [x] Add `labs list`.
 - [x] Add `labs get`.
-- [ ] Add `labs destroy`.
+- [x] Add `labs destroy`.
 - [x] Add `runs start`.
 - [x] Add `runs list`.
-- [ ] Add `snapshots create`.
-- [ ] Add `snapshots list`.
-- [ ] Add `exports request`.
+- [x] Add `snapshots create`.
+- [x] Add `snapshots list`.
+- [x] Add `exports request`.
 - [x] Add `approvals list`.
 - [x] Add `approvals approve`.
 - [x] Add `approvals deny`.

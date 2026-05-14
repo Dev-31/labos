@@ -14,11 +14,15 @@ app = typer.Typer(help="LabOS operator CLI")
 profiles_app = typer.Typer(help="Inspect built-in policy profiles")
 labs_app = typer.Typer(help="Create and inspect governed lab records")
 runs_app = typer.Typer(help="Create and inspect governed run records")
+snapshots_app = typer.Typer(help="Create and inspect governed snapshot records")
+exports_app = typer.Typer(help="Request and inspect governed export records")
 approvals_app = typer.Typer(help="Inspect and decide approval requests")
 events_app = typer.Typer(help="Inspect audit and event records")
 app.add_typer(profiles_app, name="profiles")
 app.add_typer(labs_app, name="labs")
 app.add_typer(runs_app, name="runs")
+app.add_typer(snapshots_app, name="snapshots")
+app.add_typer(exports_app, name="exports")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(events_app, name="events")
 
@@ -137,6 +141,19 @@ def labs_get(
     _emit_json(_request_json(api_url=api_url, method="GET", path=f"/labs/{lab_id}"))
 
 
+@labs_app.command("destroy")
+def labs_destroy(
+    lab_id: str,
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """Destroy a governed lab record and remove its managed storage."""
+    _emit_json(_request_json(api_url=api_url, method="DELETE", path=f"/labs/{lab_id}"))
+
+
 @runs_app.command("start")
 def runs_start(
     lab_id: str,
@@ -170,6 +187,86 @@ def runs_list(
 ) -> None:
     """List governed run request records."""
     _emit_json(_request_json(api_url=api_url, method="GET", path="/runs"))
+
+
+@snapshots_app.command("list")
+def snapshots_list(
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """List governed snapshot records."""
+    _emit_json(_request_json(api_url=api_url, method="GET", path="/snapshots"))
+
+
+@snapshots_app.command("create")
+def snapshots_create(
+    lab_id: str,
+    run_id: str | None = typer.Option(None, help="Optional run linked to this snapshot."),
+    requester_type: str = typer.Option(
+        "human",
+        help="Requester type recorded for the snapshot request.",
+    ),
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """Create a governed snapshot record."""
+    _emit_json(
+        _request_json(
+            api_url=api_url,
+            method="POST",
+            path="/snapshots",
+            payload={"lab_id": lab_id, "run_id": run_id, "requester_type": requester_type},
+        )
+    )
+
+
+@exports_app.command("request")
+def exports_request(
+    lab_id: str,
+    source_path: str,
+    run_id: str | None = typer.Option(None, help="Optional run linked to this export request."),
+    requester_type: str = typer.Option(
+        "human",
+        help="Requester type recorded for the export request.",
+    ),
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """Stage an export request through quarantine."""
+    _emit_json(
+        _request_json(
+            api_url=api_url,
+            method="POST",
+            path="/exports",
+            payload={
+                "lab_id": lab_id,
+                "source_path": source_path,
+                "run_id": run_id,
+                "requester_type": requester_type,
+            },
+        )
+    )
+
+
+@exports_app.command("list")
+def exports_list(
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """List governed export request records."""
+    _emit_json(_request_json(api_url=api_url, method="GET", path="/exports"))
 
 
 @approvals_app.command("list")

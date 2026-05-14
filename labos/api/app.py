@@ -39,6 +39,7 @@ from labos.core.models import (
     ValidationErrorResponse,
 )
 from labos.core.policy_engine import PolicyEngine
+from labos.core.policy_models import PersistenceMode
 from labos.db.schema import (
     ApprovalRow,
     EventRow,
@@ -63,6 +64,7 @@ from labos.security.secret_broker import (
     SecretNotFoundError,
 )
 from labos.storage import ManagedStorageAllocator, SnapshotManager, StoragePolicy
+from labos.storage.models import StorageAllocation
 from labos.storage.snapshots import (
     SnapshotMetadata,
     SnapshotMetadataError,
@@ -100,6 +102,20 @@ def _lab_response_from_row(row: LabRow, storage: LabStorageRow) -> LabResponse:
         ),
         created_at=row.created_at,
         updated_at=row.updated_at,
+    )
+
+
+def _storage_allocation_from_row(row: LabStorageRow) -> StorageAllocation:
+    return StorageAllocation(
+        lab_id=row.lab_id,
+        root_path=Path(row.root_path),
+        workspace_path=Path(row.workspace_path),
+        exports_path=Path(row.exports_path),
+        quarantine_path=Path(row.quarantine_path),
+        snapshots_path=Path(row.snapshots_path),
+        persistence_mode=PersistenceMode(row.persistence_mode),
+        retention_days=0,
+        workspace_mount_target=row.workspace_mount_target,
     )
 
 
@@ -488,6 +504,37 @@ def create_app(
             )
             if storage_row is None:
                 raise ResourceNotFoundError("lab_storage")
+            return _lab_response_from_row(row, storage_row)
+
+    @app.delete("/labs/{lab_id}", response_model=LabResponse)
+    def destroy_lab(lab_id: str) -> LabResponse:
+        with db_session_factory() as session:
+            row = session.get(LabRow, lab_id)
+            if row is None:
+                raise ResourceNotFoundError("lab")
+            storage_row = session.scalar(
+                select(LabStorageRow).where(LabStorageRow.lab_id == row.id)
+            )
+            if storage_row is None:
+                raise ResourceNotFoundError("lab_storage")
+
+            if row.state == LabState.DESTROYED.value:
+                raise ConflictError("lab_already_destroyed", resource="lab")
+
+            storage_allocator.destroy(_storage_allocation_from_row(storage_row))
+            row.state = LabState.DESTROYED.value
+            _record_event(
+                session,
+                event_type="lab.destroyed",
+                lab_id=row.id,
+                actor_type="human",
+                resource_type="lab",
+                resource_id=row.id,
+                payload={"state": row.state},
+            )
+            session.commit()
+            session.refresh(row)
+            session.refresh(storage_row)
             return _lab_response_from_row(row, storage_row)
 
     @app.post(

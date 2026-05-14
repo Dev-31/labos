@@ -143,3 +143,38 @@ def test_get_missing_lab_returns_custom_404_shape(tmp_path: Path) -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "resource_not_found", "resource": "lab"}
+
+
+def test_destroy_lab_marks_record_destroyed_and_cleans_managed_storage(tmp_path: Path) -> None:
+    client = build_test_client(tmp_path)
+
+    create_response = client.post(
+        "/labs",
+        json={"profile_name": "safe-dev", "requester_type": "human"},
+    )
+    created = create_response.json()
+    workspace_path = Path(created["storage"]["workspace_path"])
+    exported_file = Path(created["storage"]["exports_path"]) / "artifact.txt"
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    (workspace_path / "session.txt").write_text("lab state")
+    exported_file.write_text("artifact")
+
+    destroy_response = client.delete(f"/labs/{created['id']}")
+
+    assert destroy_response.status_code == 200
+    destroyed = destroy_response.json()
+    assert destroyed["id"] == created["id"]
+    assert destroyed["state"] == "destroyed"
+    assert Path(destroyed["storage"]["root_path"]).exists() is False
+
+    get_response = client.get(f"/labs/{created['id']}")
+    assert get_response.status_code == 200
+    assert get_response.json()["state"] == "destroyed"
+
+    events_response = client.get(
+        "/events",
+        params={"resource_type": "lab", "resource_id": created["id"]},
+    )
+    assert events_response.status_code == 200
+    event_types = [item["event_type"] for item in events_response.json()]
+    assert event_types == ["lab.requested", "lab.destroyed"]

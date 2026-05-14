@@ -120,6 +120,28 @@ def test_labs_get_prints_json(monkeypatch) -> None:
     assert json.loads(result.stdout) == {"id": "lab-1", "state": "approved"}
 
 
+def test_labs_destroy_calls_delete_endpoint(monkeypatch) -> None:
+    def fake_request_json(
+        *,
+        api_url: str,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> Any:
+        assert api_url == "http://127.0.0.1:8000"
+        assert method == "DELETE"
+        assert path == "/labs/lab-1"
+        assert payload is None
+        return {"id": "lab-1", "state": "destroyed"}
+
+    monkeypatch.setattr("labos.cli.main._request_json", fake_request_json)
+
+    result = runner.invoke(app, ["labs", "destroy", "lab-1"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"id": "lab-1", "state": "destroyed"}
+
+
 def test_runs_start_posts_request_payload(monkeypatch) -> None:
     def fake_request_json(
         *,
@@ -176,6 +198,117 @@ def test_runs_list_prints_json(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.stdout) == [{"id": "run-1"}]
+
+
+def test_snapshots_list_prints_json(monkeypatch) -> None:
+    def fake_request_json(
+        *,
+        api_url: str,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> Any:
+        assert api_url == "http://127.0.0.1:8000"
+        assert method == "GET"
+        assert path == "/snapshots"
+        assert payload is None
+        return [{"id": "snapshot-1"}]
+
+    monkeypatch.setattr("labos.cli.main._request_json", fake_request_json)
+
+    result = runner.invoke(app, ["snapshots", "list"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == [{"id": "snapshot-1"}]
+
+
+def test_snapshots_create_posts_request_payload(monkeypatch) -> None:
+    def fake_request_json(
+        *,
+        api_url: str,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> Any:
+        assert api_url == "http://127.0.0.1:8000"
+        assert method == "POST"
+        assert path == "/snapshots"
+        assert payload == {
+            "lab_id": "lab-1",
+            "run_id": "run-1",
+            "requester_type": "human",
+        }
+        return {"id": "snapshot-1", "lab_id": "lab-1", "state": "created"}
+
+    monkeypatch.setattr("labos.cli.main._request_json", fake_request_json)
+
+    result = runner.invoke(app, ["snapshots", "create", "lab-1", "--run-id", "run-1"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"id": "snapshot-1", "lab_id": "lab-1", "state": "created"}
+
+
+def test_exports_request_posts_request_payload(monkeypatch) -> None:
+    def fake_request_json(
+        *,
+        api_url: str,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> Any:
+        assert api_url == "http://127.0.0.1:8000"
+        assert method == "POST"
+        assert path == "/exports"
+        assert payload == {
+            "lab_id": "lab-1",
+            "source_path": "/lab/exports/report.txt",
+            "run_id": "run-1",
+            "requester_type": "human",
+        }
+        return {"id": "export-1", "lab_id": "lab-1", "state": "quarantined"}
+
+    monkeypatch.setattr("labos.cli.main._request_json", fake_request_json)
+
+    result = runner.invoke(
+        app,
+        [
+            "exports",
+            "request",
+            "lab-1",
+            "/lab/exports/report.txt",
+            "--run-id",
+            "run-1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "id": "export-1",
+        "lab_id": "lab-1",
+        "state": "quarantined",
+    }
+
+
+def test_exports_list_prints_json(monkeypatch) -> None:
+    def fake_request_json(
+        *,
+        api_url: str,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> Any:
+        assert api_url == "http://127.0.0.1:8000"
+        assert method == "GET"
+        assert path == "/exports"
+        assert payload is None
+        return [{"id": "export-1"}]
+
+    monkeypatch.setattr("labos.cli.main._request_json", fake_request_json)
+
+    result = runner.invoke(app, ["exports", "list"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == [{"id": "export-1"}]
 
 
 def test_events_list_prints_json(monkeypatch) -> None:

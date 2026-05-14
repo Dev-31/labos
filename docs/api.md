@@ -73,6 +73,14 @@ If the lab does not exist, LabOS returns:
 {"detail": "resource_not_found", "resource": "lab"}
 ```
 
+### `DELETE /labs/{lab_id}`
+Marks a governed lab record as `destroyed` and removes its managed storage tree.
+
+Current API behavior is honest:
+- this cleans managed filesystem state only
+- it records a `lab.destroyed` audit event
+- it does **not** claim container or microVM teardown yet because runtime lifecycle reconciliation is still a later phase
+
 ### `POST /labs/{lab_id}/secret-leases`
 Issues a time-bound secret lease for a lab from the configured control-plane secret broker.
 

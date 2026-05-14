@@ -59,4 +59,5 @@ Operator-facing YAML examples live in `examples/profiles/`.
 - High-risk lab creation and high-risk export release now create explicit approval records that can be listed and decided through the API.
 - Secret access is now brokered through explicit time-bound lease records; secret names must be allowlisted by profile and resolved from `LABOS_SECRET_<NAME>` at materialization time.
 - `GET /events` now returns actor/resource-aware audit rows and supports filter query parameters for event type, actor type, resource, lab, and run scope.
-- The CLI currently includes read-only and operator workflows for `profiles`, `labs`, `runs`, `approvals`, and `events` against `LABOS_API_URL` (default `http://127.0.0.1:8000`). See `docs/cli.md` for command examples and current honesty boundaries.
+- The CLI now includes operator workflows for `profiles`, `labs`, `runs`, `snapshots`, `exports`, `approvals`, and `events` against `LABOS_API_URL` (default `http://127.0.0.1:8000`). See `docs/cli.md` for command examples and current honesty boundaries.
+- `DELETE /labs/{lab_id}` removes managed storage and records a destroyed lab state, but it does not yet claim runtime teardown semantics beyond metadata + filesystem cleanup.

@@ -34,6 +34,11 @@ class ManagedStorageAllocator:
             workspace_mount_target=policy.workspace_mount_target,
         )
 
+    def destroy(self, allocation: StorageAllocation) -> None:
+        self.assert_managed_path(allocation.root_path)
+        if allocation.root_path.exists():
+            rmtree(allocation.root_path)
+
     def retention_deadline(
         self,
         allocation: StorageAllocation,
