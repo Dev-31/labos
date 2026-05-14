@@ -641,7 +641,7 @@ An operator can create, inspect, run, snapshot, export, approve, and destroy fro
 - [x] Add `approvals deny`.
 - [x] Add `events list`.
 - [x] Add CLI tests.
-- [ ] Commit CLI.
+- [x] Commit CLI.
 
 ---
 
