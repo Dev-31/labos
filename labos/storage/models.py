@@ -35,6 +35,7 @@ class StorageAllocation:
     quarantine_path: Path
     snapshots_path: Path
     persistence_mode: PersistenceMode
+    retention_days: int
     workspace_mount_target: str = "/workspace"
 
     def runtime_mount(self) -> ManagedMount:

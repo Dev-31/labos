@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
+from shutil import rmtree
 
+from labos.core.policy_models import PersistenceMode
 from labos.storage.models import StorageAllocation, StoragePolicy
 
 
@@ -27,8 +30,33 @@ class ManagedStorageAllocator:
             quarantine_path=quarantine_path,
             snapshots_path=snapshots_path,
             persistence_mode=policy.persistence_mode,
+            retention_days=policy.retention_days,
             workspace_mount_target=policy.workspace_mount_target,
         )
+
+    def retention_deadline(
+        self,
+        allocation: StorageAllocation,
+        *,
+        released_at: datetime,
+    ) -> datetime:
+        if allocation.persistence_mode is PersistenceMode.EPHEMERAL:
+            return released_at
+        return released_at + timedelta(days=allocation.retention_days)
+
+    def cleanup(
+        self,
+        allocation: StorageAllocation,
+        *,
+        released_at: datetime,
+        as_of: datetime,
+    ) -> bool:
+        self.assert_managed_path(allocation.root_path)
+        if as_of < self.retention_deadline(allocation, released_at=released_at):
+            return False
+        if allocation.root_path.exists():
+            rmtree(allocation.root_path)
+        return True
 
     def assert_managed_path(self, path: Path) -> None:
         resolved = path.resolve()

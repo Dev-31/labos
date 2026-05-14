@@ -441,10 +441,10 @@ Labs write only to managed areas, and persistence behavior follows policy.
 - [x] Define managed path conventions.
 - [x] Separate metadata from runtime payload storage.
 - [x] Implement lab workspace allocator.
-- [ ] Implement ephemeral cleanup rules.
-- [ ] Implement persistent retention rules.
+- [x] Implement ephemeral cleanup rules.
+- [x] Implement persistent retention rules.
 - [x] Write tests for forbidden host path mounts.
-- [ ] Write tests for cleanup behavior.
+- [x] Write tests for cleanup behavior.
 - [x] Add storage metadata recording.
 - [ ] Commit storage layer.
 
