@@ -494,21 +494,21 @@ Exports are staged, hashed, reviewed by policy, and only then released.
 6. release or deny
 
 ### Steps
-- [ ] Define export request model.
-- [ ] Define quarantine path structure.
-- [ ] Define artifact hash model.
-- [ ] Define provenance record model.
-- [ ] Write tests for export request creation.
-- [ ] Write tests for high-risk export requiring approval.
-- [ ] Implement export staging copy.
-- [ ] Compute hashes.
-- [ ] Store file metadata.
-- [ ] Bind export to lab/run identity.
-- [ ] Evaluate export policy.
-- [ ] Block direct release on forbidden profiles.
-- [ ] Add release endpoint/service.
-- [ ] Add denial endpoint/service.
-- [ ] Add event logging for every export stage.
+- [x] Define export request model.
+- [x] Define quarantine path structure.
+- [x] Define artifact hash model.
+- [x] Define provenance record model.
+- [x] Write tests for export request creation.
+- [x] Write tests for high-risk export requiring approval.
+- [x] Implement export staging copy.
+- [x] Compute hashes.
+- [x] Store file metadata.
+- [x] Bind export to lab/run identity.
+- [x] Evaluate export policy.
+- [x] Block direct release on forbidden profiles.
+- [x] Add release endpoint/service.
+- [x] Add denial endpoint/service.
+- [x] Add event logging for every export stage.
 - [ ] Commit export gate.
 
 ---

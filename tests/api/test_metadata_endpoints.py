@@ -40,8 +40,15 @@ def test_list_approvals_snapshots_exports_and_events(tmp_path: Path) -> None:
     export = ExportRow(
         id=str(uuid4()),
         lab_id=lab_id,
+        run_id=None,
         source_path="/lab/exports/result.txt",
+        state="released",
+        quarantine_path="/tmp/lab/quarantine/result.txt",
+        released_path="/tmp/lab/released/result.txt",
+        approval_required=False,
         sha256="a" * 64,
+        size_bytes=128,
+        denial_reason=None,
     )
     event = EventRow(
         id=str(uuid4()),

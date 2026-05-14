@@ -53,4 +53,5 @@ Operator-facing YAML examples live in `examples/profiles/`.
 ## Managed storage
 - LabOS now allocates a managed lab filesystem root for each recorded lab request under `LABOS_MANAGED_STORAGE_ROOT` (default `./.labos/storage`).
 - Each lab gets reserved `workspace`, `exports`, `quarantine`, and `snapshots` paths, recorded in durable metadata.
-- This is storage planning and metadata allocation only; LabOS does not yet claim full cleanup, snapshot capture, or runtime restore semantics.
+- Export release copies are published under a managed `released/<export-id>/` directory only through the control-plane release endpoint.
+- Snapshot restore is currently limited to managed container workspaces, and high-risk exports still stop at `export_approval_required` until the later approval workflow ships.

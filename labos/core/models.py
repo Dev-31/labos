@@ -83,11 +83,28 @@ class SnapshotResponse(BaseModel):
     updated_at: datetime
 
 
+class ExportCreateRequest(BaseModel):
+    lab_id: str
+    source_path: str
+    run_id: str | None = None
+
+
+class ExportDenyRequest(BaseModel):
+    reason: str
+
+
 class ExportResponse(BaseModel):
     id: str
     lab_id: str
+    run_id: str | None = None
     source_path: str
+    state: str
+    quarantine_path: str
+    released_path: str | None = None
+    approval_required: bool
     sha256: str
+    size_bytes: int
+    denial_reason: str | None = None
     created_at: datetime
     updated_at: datetime
 

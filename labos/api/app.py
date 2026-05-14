@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -17,6 +18,8 @@ from labos.core.models import (
     ApprovalResponse,
     ErrorResponse,
     EventResponse,
+    ExportCreateRequest,
+    ExportDenyRequest,
     ExportResponse,
     HealthResponse,
     LabCreateRequest,
@@ -41,6 +44,12 @@ from labos.db.schema import (
     SnapshotRow,
 )
 from labos.db.session import build_session_factory
+from labos.security.export_gate import (
+    ExportGate,
+    ExportPolicyError,
+    ExportSourceNotFoundError,
+    ExportStateError,
+)
 from labos.storage import ManagedStorageAllocator, SnapshotManager, StoragePolicy
 from labos.storage.snapshots import (
     SnapshotMetadata,
@@ -132,10 +141,36 @@ def _export_response_from_row(row: ExportRow) -> ExportResponse:
     return ExportResponse(
         id=row.id,
         lab_id=row.lab_id,
+        run_id=row.run_id,
         source_path=row.source_path,
+        state=row.state,
+        quarantine_path=row.quarantine_path,
+        released_path=row.released_path,
+        approval_required=row.approval_required,
         sha256=row.sha256,
+        size_bytes=row.size_bytes,
+        denial_reason=row.denial_reason,
         created_at=row.created_at,
         updated_at=row.updated_at,
+    )
+
+
+def _record_event(
+    session: Session,
+    *,
+    event_type: str,
+    payload: dict[str, object],
+    lab_id: str | None = None,
+    run_id: str | None = None,
+) -> None:
+    session.add(
+        EventRow(
+            id=str(uuid4()),
+            lab_id=lab_id,
+            run_id=run_id,
+            event_type=event_type,
+            payload_json=json.dumps(payload, sort_keys=True),
+        )
     )
 
 
@@ -165,6 +200,7 @@ def create_app(
         root=managed_storage_root or app_settings.managed_storage_root
     )
     snapshot_manager = SnapshotManager()
+    export_gate = ExportGate(policy_engine=policy)
 
     app = FastAPI(title=app_settings.app_name, version=__version__)
 
@@ -408,6 +444,159 @@ def create_app(
                 raise ConflictError(str(exc), resource="snapshot") from exc
 
             return _snapshot_response_from_row(snapshot, metadata)
+
+    @app.post("/exports", response_model=ExportResponse, status_code=status.HTTP_201_CREATED)
+    def create_export(request: ExportCreateRequest) -> ExportResponse:
+        with db_session_factory() as session:
+            lab = session.get(LabRow, request.lab_id)
+            if lab is None:
+                raise ResourceNotFoundError("lab")
+            storage_row = session.scalar(
+                select(LabStorageRow).where(LabStorageRow.lab_id == request.lab_id)
+            )
+            if storage_row is None:
+                raise ResourceNotFoundError("lab_storage")
+
+            if request.run_id is not None:
+                run = session.get(RunRow, request.run_id)
+                if run is None:
+                    raise ResourceNotFoundError("run")
+                if run.lab_id != lab.id:
+                    raise ConflictError("export_run_mismatch", resource="export")
+
+            export_id = str(uuid4())
+            _record_event(
+                session,
+                event_type="export.requested",
+                lab_id=lab.id,
+                run_id=request.run_id,
+                payload={
+                    "export_id": export_id,
+                    "source_path": request.source_path,
+                },
+            )
+            try:
+                staged = export_gate.stage_export(
+                    export_id,
+                    lab=lab,
+                    storage=storage_row,
+                    source_path=request.source_path,
+                    run_id=request.run_id,
+                )
+            except ExportSourceNotFoundError as exc:
+                raise ResourceNotFoundError("export_source") from exc
+            except ExportPolicyError as exc:
+                raise ConflictError(str(exc), resource="export") from exc
+
+            row = ExportRow(
+                id=export_id,
+                lab_id=lab.id,
+                run_id=request.run_id,
+                source_path=staged.provenance.source_path,
+                state=staged.state.value,
+                quarantine_path=staged.provenance.quarantine_path,
+                released_path=staged.provenance.released_path,
+                approval_required=staged.approval_required,
+                sha256=staged.provenance.artifact_hash.digest,
+                size_bytes=staged.provenance.size_bytes,
+                denial_reason=None,
+            )
+            session.add(row)
+            _record_event(
+                session,
+                event_type="export.staged",
+                lab_id=lab.id,
+                run_id=request.run_id,
+                payload={
+                    "export_id": export_id,
+                    "source_path": row.source_path,
+                    "quarantine_path": row.quarantine_path,
+                    "sha256": row.sha256,
+                    "size_bytes": row.size_bytes,
+                    "approval_required": row.approval_required,
+                },
+            )
+            session.commit()
+            session.refresh(row)
+            return _export_response_from_row(row)
+
+    @app.post("/exports/{export_id}/release", response_model=ExportResponse)
+    def release_export(export_id: str) -> ExportResponse:
+        with db_session_factory() as session:
+            row = session.get(ExportRow, export_id)
+            if row is None:
+                raise ResourceNotFoundError("export")
+            storage_row = session.scalar(
+                select(LabStorageRow).where(LabStorageRow.lab_id == row.lab_id)
+            )
+            if storage_row is None:
+                raise ResourceNotFoundError("lab_storage")
+
+            try:
+                released = export_gate.release_export(row, storage=storage_row)
+            except ExportSourceNotFoundError as exc:
+                raise ResourceNotFoundError("export_source") from exc
+            except ExportPolicyError as exc:
+                _record_event(
+                    session,
+                    event_type="export.release_blocked",
+                    lab_id=row.lab_id,
+                    run_id=row.run_id,
+                    payload={
+                        "export_id": row.id,
+                        "reason": str(exc),
+                    },
+                )
+                session.commit()
+                raise ConflictError(str(exc), resource="export") from exc
+            except ExportStateError as exc:
+                raise ConflictError(str(exc), resource="export") from exc
+
+            row.state = released.state.value
+            row.released_path = released.provenance.released_path
+            row.denial_reason = None
+            _record_event(
+                session,
+                event_type="export.released",
+                lab_id=row.lab_id,
+                run_id=row.run_id,
+                payload={
+                    "export_id": row.id,
+                    "released_path": row.released_path,
+                },
+            )
+            session.commit()
+            session.refresh(row)
+            return _export_response_from_row(row)
+
+    @app.post("/exports/{export_id}/deny", response_model=ExportResponse)
+    def deny_export(export_id: str, request: ExportDenyRequest) -> ExportResponse:
+        with db_session_factory() as session:
+            row = session.get(ExportRow, export_id)
+            if row is None:
+                raise ResourceNotFoundError("export")
+
+            try:
+                denied = export_gate.deny_export(row, reason=request.reason)
+            except ExportStateError as exc:
+                raise ConflictError(str(exc), resource="export") from exc
+
+            row.state = denied.state.value
+            row.denial_reason = denied.denial_reason
+            row.released_path = None
+            _record_event(
+                session,
+                event_type="export.denied",
+                lab_id=row.lab_id,
+                run_id=row.run_id,
+                payload={
+                    "export_id": row.id,
+                    "reason": row.denial_reason,
+                },
+            )
+            session.commit()
+            session.refresh(row)
+            return _export_response_from_row(row)
 
     @app.get("/exports", response_model=list[ExportResponse])
     def list_exports() -> list[ExportResponse]:

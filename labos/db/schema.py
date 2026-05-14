@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -71,8 +71,15 @@ class ExportRow(TimestampedRow, Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     lab_id: Mapped[str] = mapped_column(ForeignKey("labs.id", ondelete="CASCADE"), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     source_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    quarantine_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    released_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    denial_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class SnapshotRow(TimestampedRow, Base):

@@ -1,6 +1,6 @@
 # LabOS API Guide
 
-Phase 1 currently exposes the first stable control-plane surface for health, profile discovery, and metadata-backed lab, run, approval, snapshot, export, and event records.
+Phase 1 currently exposes the first stable control-plane surface for health, profile discovery, managed storage-backed lab metadata, snapshot capture/restore, and export quarantine workflows.
 
 ## Current endpoints
 
@@ -119,8 +119,63 @@ Lists recorded approval metadata rows.
 ### `GET /snapshots`
 Lists recorded snapshot metadata rows.
 
+### `POST /snapshots`
+Creates a managed workspace snapshot for container labs.
+
+Current API behavior is honest:
+- snapshots currently archive the managed workspace directory only
+- restore rehydrates managed workspace contents for container labs only
+- microVM/runtime-memory snapshot semantics are not implemented yet
+
+### `POST /snapshots/{snapshot_id}/restore`
+Restores a managed workspace snapshot into another container-backed lab.
+
+### `POST /exports`
+Stages an artifact from the managed guest export path (`/lab/exports/...`) into quarantine, hashes it, and records provenance.
+
+Example request:
+
+```json
+{
+  "lab_id": "<lab-id>",
+  "run_id": "<run-id>",
+  "source_path": "/lab/exports/report.txt"
+}
+```
+
+Example response:
+
+```json
+{
+  "id": "<uuid>",
+  "lab_id": "<lab-id>",
+  "run_id": "<run-id>",
+  "source_path": "/lab/exports/report.txt",
+  "state": "quarantined",
+  "quarantine_path": "./.labos/storage/labs/<lab-id>/quarantine/<export-id>/report.txt",
+  "released_path": null,
+  "approval_required": false,
+  "sha256": "<sha256>",
+  "size_bytes": 17,
+  "denial_reason": null,
+  "created_at": "2026-05-14T00:00:00Z",
+  "updated_at": "2026-05-14T00:00:00Z"
+}
+```
+
+### `POST /exports/{export_id}/release`
+Copies a quarantined artifact into a managed released directory after policy review succeeds.
+
+Current API behavior is honest:
+- release is available for non-approval exports now
+- high-risk exports return `409 {"detail":"export_approval_required","resource":"export"}` until the later approval workflow exists
+- release copies are control-plane managed; labs do not write directly to host release locations
+
+### `POST /exports/{export_id}/deny`
+Marks a quarantined export as rejected and records the denial reason.
+
 ### `GET /exports`
-Lists recorded export metadata rows.
+Lists recorded export metadata rows, including quarantine/release state.
 
 ### `GET /events`
 Lists recorded audit/event metadata rows.
@@ -140,11 +195,14 @@ Request validation errors return a stable machine-readable structure:
 
 ## Honesty boundary
 
-These endpoints are currently control-plane metadata APIs only. They do not yet promise:
-- runtime execution
-- snapshot creation semantics
-- export quarantine release semantics
-- approval mutation workflows
-- event streaming
+These endpoints currently provide real control-plane behavior for:
+- managed lab metadata allocation
+- governed run metadata
+- container-workspace snapshot create/restore
+- export quarantine, release, denial, and audit events
 
-Those behaviors remain separate roadmap phases and should not be inferred from the presence of list/create metadata endpoints alone.
+They do not yet promise:
+- runtime execution inside Docker or a microVM
+- microVM-grade snapshot/memory semantics
+- approval decision mutation workflows for high-risk exports
+- event streaming subscriptions

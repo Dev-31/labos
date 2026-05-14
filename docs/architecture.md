@@ -39,13 +39,20 @@ These states are explicit so policy, storage, runtime, and API layers can share 
 ## Durable metadata
 - SQLAlchemy is the Phase 1 metadata layer.
 - Core durable tables are `labs`, `lab_storage`, `runs`, `approvals`, `exports`, `snapshots`, and `events`.
-- Alembic is declared in the toolchain, but the public repo does not yet ship committed migration files; schema changes currently rely on SQLAlchemy metadata creation in tests and local development.
+- Alembic migrations are committed under `alembic/versions/` and remain the supported schema upgrade path for local and CI environments.
 
 ## Managed lab filesystem
 - LabOS reserves a managed filesystem root per lab under `LABOS_MANAGED_STORAGE_ROOT`.
 - Current path convention is `labs/<lab-id>/` with dedicated `workspace`, `exports`, `quarantine`, and `snapshots` subdirectories.
+- Export release copies are published under a managed `released/<export-id>/` subtree inside the same lab root; release is a control-plane action, not a direct host write from the lab.
 - Storage allocation metadata is recorded separately from lab lifecycle metadata so later runtime, snapshot, and retention phases can evolve without overloading the `labs` table.
-- The control plane now rejects unmanaged host paths when validating managed storage sources.
+- The control plane rejects unmanaged host paths when validating managed storage sources.
+
+## Phase 1 export gate model
+- Export requests are staged from the managed guest path `/lab/exports/...` into a per-export quarantine directory.
+- Quarantine records include lab identity, optional run identity, hash, size, staged path, and final state.
+- Release copies from quarantine into a managed released directory only after policy review succeeds.
+- High-risk exports are honestly blocked with `export_approval_required` until the later approval workflow lands; LabOS does not pretend that approval automation already exists.
 
 ## Phase 1 snapshot model
 - Phase 1 snapshots are honest container-storage snapshots: a tarred copy of the managed workspace plus a JSON manifest.
