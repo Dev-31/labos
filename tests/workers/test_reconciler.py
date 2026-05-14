@@ -124,6 +124,111 @@ def test_reconciler_detects_orphaned_runtime_labs(tmp_path: Path) -> None:
     assert [event.event_type for event in orphan_events] == ["runtime_lab.orphan_detected"]
 
 
+
+def test_reconciler_detects_zombie_runtime_for_destroyed_lab(tmp_path: Path) -> None:
+    session = build_session(tmp_path)
+    lab_root = tmp_path / "managed" / "labs" / "lab-destroyed"
+    lab_root.mkdir(parents=True)
+    session.add(
+        LabRow(
+            id="lab-destroyed",
+            profile_name="safe-dev",
+            state=LabState.DESTROYED.value,
+            runtime_class="container",
+        )
+    )
+    session.add(
+        LabStorageRow(
+            id="storage-destroyed",
+            lab_id="lab-destroyed",
+            persistence_mode="ephemeral",
+            root_path=str(lab_root),
+            workspace_path=str(lab_root / "workspace"),
+            exports_path=str(lab_root / "exports"),
+            quarantine_path=str(lab_root / "quarantine"),
+            snapshots_path=str(lab_root / "snapshots"),
+            workspace_mount_target="/lab/workspace",
+        )
+    )
+    session.commit()
+
+    inventory = FakeRuntimeInventory(
+        inspections=[
+            LabInspection(
+                lab_id="lab-destroyed",
+                backend="docker",
+                container_name="labos-lab-destroyed",
+                status="running",
+                labels={"labos.managed": "true", "labos.lab_id": "lab-destroyed"},
+            )
+        ]
+    )
+
+    report = ReconciliationService(runtime_inventory=inventory).reconcile(session)
+    session.commit()
+
+    assert report.zombie_lab_ids == ["lab-destroyed"]
+    zombie_events = session.scalars(
+        select(EventRow)
+        .where(EventRow.resource_id == "lab-destroyed")
+        .order_by(EventRow.created_at, EventRow.id)
+    ).all()
+    assert [event.event_type for event in zombie_events] == ["runtime_lab.zombie_detected"]
+
+
+
+def test_reconciler_ignores_stopped_runtime_for_stopped_lab(tmp_path: Path) -> None:
+    session = build_session(tmp_path)
+    lab_root = tmp_path / "managed" / "labs" / "lab-stopped"
+    lab_root.mkdir(parents=True)
+    session.add(
+        LabRow(
+            id="lab-stopped",
+            profile_name="safe-dev",
+            state=LabState.STOPPED.value,
+            runtime_class="container",
+        )
+    )
+    session.add(
+        LabStorageRow(
+            id="storage-stopped",
+            lab_id="lab-stopped",
+            persistence_mode="ephemeral",
+            root_path=str(lab_root),
+            workspace_path=str(lab_root / "workspace"),
+            exports_path=str(lab_root / "exports"),
+            quarantine_path=str(lab_root / "quarantine"),
+            snapshots_path=str(lab_root / "snapshots"),
+            workspace_mount_target="/lab/workspace",
+        )
+    )
+    session.commit()
+
+    inventory = FakeRuntimeInventory(
+        inspections=[
+            LabInspection(
+                lab_id="lab-stopped",
+                backend="docker",
+                container_name="labos-lab-stopped",
+                status="exited",
+                labels={"labos.managed": "true", "labos.lab_id": "lab-stopped"},
+            )
+        ]
+    )
+
+    report = ReconciliationService(runtime_inventory=inventory).reconcile(session)
+    session.commit()
+
+    assert report.zombie_lab_ids == []
+    zombie_events = session.scalars(
+        select(EventRow)
+        .where(EventRow.resource_id == "lab-stopped")
+        .order_by(EventRow.created_at, EventRow.id)
+    ).all()
+    assert zombie_events == []
+
+
+
 def test_reconciler_expires_stale_pending_approvals_and_fails_lab(tmp_path: Path) -> None:
     session = build_session(tmp_path)
     now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)

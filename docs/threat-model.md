@@ -19,3 +19,4 @@
 - secret injection defaults to an empty list and rejects unknown secret names
 - request-time network widening is rejected; the profile remains authoritative
 - critical microVM-ready profiles require deny-by-default networking and approval-gated exports
+- the reconciliation worker flags active runtime artifacts that linger after a lab reaches destroyed/failed/pre-runtime states

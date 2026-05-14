@@ -22,6 +22,7 @@ class RuntimeInventory(Protocol):
 class ReconciliationReport:
     failed_lab_ids: list[str] = field(default_factory=list)
     orphaned_runtime_lab_ids: list[str] = field(default_factory=list)
+    zombie_lab_ids: list[str] = field(default_factory=list)
     expired_approval_ids: list[str] = field(default_factory=list)
     revoked_secret_lease_ids: list[str] = field(default_factory=list)
     timed_out_run_ids: list[str] = field(default_factory=list)
@@ -96,24 +97,45 @@ class ReconciliationService:
             self._sort_report(report)
             return report
 
+        labs_by_id = {lab.id: lab for lab in labs}
         for inspection in self._runtime_inventory.list_managed_labs():
-            if inspection.lab_id in lab_ids:
-                continue
-            report.orphaned_runtime_lab_ids.append(inspection.lab_id)
-            event_writer.write(
-                EventRecord(
-                    event_type="runtime_lab.orphan_detected",
-                    actor_type=ActorType.SYSTEM.value,
-                    actor_id="reconciler",
-                    resource_type="runtime_lab",
-                    resource_id=inspection.lab_id,
-                    payload={
-                        "backend": inspection.backend,
-                        "container_name": inspection.container_name,
-                        "status": inspection.status,
-                    },
+            matching_lab = labs_by_id.get(inspection.lab_id)
+            if matching_lab is None:
+                report.orphaned_runtime_lab_ids.append(inspection.lab_id)
+                event_writer.write(
+                    EventRecord(
+                        event_type="runtime_lab.orphan_detected",
+                        actor_type=ActorType.SYSTEM.value,
+                        actor_id="reconciler",
+                        resource_type="runtime_lab",
+                        resource_id=inspection.lab_id,
+                        payload={
+                            "backend": inspection.backend,
+                            "container_name": inspection.container_name,
+                            "status": inspection.status,
+                        },
+                    )
                 )
-            )
+                continue
+
+            if self._is_zombie_lab(matching_lab.state, inspection.status):
+                report.zombie_lab_ids.append(inspection.lab_id)
+                event_writer.write(
+                    EventRecord(
+                        event_type="runtime_lab.zombie_detected",
+                        lab_id=matching_lab.id,
+                        actor_type=ActorType.SYSTEM.value,
+                        actor_id="reconciler",
+                        resource_type="runtime_lab",
+                        resource_id=inspection.lab_id,
+                        payload={
+                            "backend": inspection.backend,
+                            "container_name": inspection.container_name,
+                            "status": inspection.status,
+                            "lab_state": matching_lab.state,
+                        },
+                    )
+                )
 
         self._sort_report(report)
         return report
@@ -250,9 +272,24 @@ class ReconciliationService:
     def _sort_report(report: ReconciliationReport) -> None:
         report.failed_lab_ids.sort()
         report.orphaned_runtime_lab_ids.sort()
+        report.zombie_lab_ids.sort()
         report.expired_approval_ids.sort()
         report.revoked_secret_lease_ids.sort()
         report.timed_out_run_ids.sort()
+
+    @staticmethod
+    def _is_zombie_lab(lab_state: str, runtime_status: str) -> bool:
+        active_runtime_statuses = {"created", "restarting", "running", "paused"}
+        if runtime_status not in active_runtime_statuses:
+            return False
+
+        allowed_runtime_states = {
+            LabState.PROVISIONING.value,
+            LabState.RUNNING.value,
+            LabState.STOPPED.value,
+            LabState.DESTROYING.value,
+        }
+        return lab_state not in allowed_runtime_states
 
     @staticmethod
     def _normalize_datetime(value: datetime) -> datetime:
