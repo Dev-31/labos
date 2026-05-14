@@ -762,15 +762,15 @@ Make the repo releaseable, not just code-complete.
 You can tag `v0.1.0` without embarrassment.
 
 ### Steps
-- [ ] Clean open issues in code comments.
-- [ ] Run full test suite.
-- [ ] Run lint.
-- [ ] Run type checks.
-- [ ] Test install from clean machine/container.
+- [x] Clean open issues in code comments.
+- [x] Run full test suite.
+- [x] Run lint.
+- [x] Run type checks.
+- [x] Test install from clean machine/container.
 - [ ] Test local Docker integration from scratch.
-- [ ] Validate docs commands actually work.
-- [ ] Add release checklist.
-- [ ] Add changelog or release notes.
+- [x] Validate docs commands actually work.
+- [x] Add release checklist.
+- [x] Add changelog or release notes.
 - [ ] Tag first release.
 
 ---

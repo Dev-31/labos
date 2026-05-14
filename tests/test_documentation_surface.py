@@ -49,3 +49,21 @@ def test_contributing_doc_covers_setup_verification_and_scope_guardrails() -> No
     assert "uv run ruff check ." in contributing
     assert "uv run mypy" in contributing
     assert "Do not add private workloads" in contributing
+
+
+def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
+    release_checklist = _read("docs/release-checklist.md")
+    changelog = _read("CHANGELOG.md")
+
+    assert "# LabOS v0.1 Release Checklist" in release_checklist
+    assert "## Verification commands" in release_checklist
+    assert "uv run pytest -q" in release_checklist
+    assert "uv run ruff check ." in release_checklist
+    assert "uv run mypy" in release_checklist
+    assert "docker" in release_checklist.lower()
+    assert "documentation" in release_checklist.lower()
+
+    assert "# Changelog" in changelog
+    assert "## v0.1.0 (unreleased)" in changelog
+    assert "public core" in changelog.lower()
+    assert "Honesty boundary" in changelog

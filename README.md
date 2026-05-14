@@ -182,8 +182,10 @@ Detailed profile docs live in `docs/lab-profiles.md` and YAML examples live in `
 - `docs/api.md` — public API contract
 - `docs/cli.md` — operator CLI contract
 - `docs/repo-sources.md` — external references informing the architecture
+- `docs/release-checklist.md` — v0.1 release-readiness checklist and evidence template
+- `CHANGELOG.md` — release notes for the public core
 - `CONTRIBUTING.md` — contributor workflow and guardrails
 - `SECURITY.md` — security reporting and disclosure policy
 
 ## Roadmap status
-The next major gate after this documentation pass is release readiness in `ROADMAP.md` / `docs/plans/2026-05-13-labos-roadmap.md`: installation verification, Docker integration validation, docs command validation, and release checklist/changelog work before a public `v0.1.0` tag.
+The active release-readiness gate in `ROADMAP.md` / `docs/plans/2026-05-13-labos-roadmap.md` now has release checklist/changelog coverage plus verified tests, lint, type checks, install smoke, and docs-command smoke. The remaining public-core work before a `v0.1.0` tag is local Docker integration validation and the final tagging decision.
