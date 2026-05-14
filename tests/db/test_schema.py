@@ -16,6 +16,7 @@ def test_metadata_contains_core_tables() -> None:
         "snapshots",
         "events",
         "secret_leases",
+        "scheduler_jobs",
     }.issubset(tables)
 
 
@@ -79,4 +80,28 @@ def test_secret_leases_table_contains_tracking_columns() -> None:
         "approved",
         "expires_at",
         "revoked_at",
+    }.issubset(columns)
+
+
+def test_scheduler_jobs_table_contains_queue_tracking_columns() -> None:
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("scheduler_jobs")}
+
+    assert {
+        "action",
+        "state",
+        "requester_id",
+        "profile_name",
+        "lab_id",
+        "command",
+        "scheduled_for",
+        "attempt_count",
+        "max_attempts",
+        "last_error",
+        "result_resource_type",
+        "result_resource_id",
+        "dispatched_at",
+        "completed_at",
     }.issubset(columns)

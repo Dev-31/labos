@@ -139,3 +139,27 @@ class EventRow(TimestampedRow, Base):
     resource_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class SchedulerJobRow(TimestampedRow, Base):
+    __tablename__ = "scheduler_jobs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    requester_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    profile_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    lab_id: Mapped[str | None] = mapped_column(
+        ForeignKey("labs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    command: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scheduled_for: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_resource_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    result_resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

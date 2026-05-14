@@ -46,6 +46,18 @@ class SnapshotState(StrEnum):
     RESTORED = "restored"
 
 
+class SchedulerAction(StrEnum):
+    CREATE_LAB = "create_lab"
+    START_RUN = "start_run"
+
+
+class SchedulerJobState(StrEnum):
+    QUEUED = "queued"
+    DISPATCHED = "dispatched"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 class ActorType(StrEnum):
     HUMAN = "human"
     AGENT = "agent"

@@ -323,7 +323,7 @@ Labs, runs, approvals, exports, snapshots, and events survive process restarts.
 - [ ] Add export requests table.
 - [x] Add audit events table.
 - [x] Add secret leases table.
-- [ ] Add scheduler jobs table.
+- [x] Add scheduler jobs table.
 - [ ] Add indexes for lab status lookups.
 - [ ] Add indexes for run status lookups.
 - [ ] Add indexes for event timelines.
@@ -658,17 +658,17 @@ Scheduled jobs can request labs and runs through the same control plane.
 - full distributed orchestration later
 
 ### Steps
-- [ ] Define scheduler job schema.
-- [ ] Define allowed scheduler action set.
-- [ ] Write tests for scheduler-created lab policy enforcement.
-- [ ] Implement scheduler job storage.
-- [ ] Implement enqueue path.
-- [ ] Implement worker loop stub.
-- [ ] Implement dispatch through same lab creation service.
-- [ ] Implement quota checks.
-- [ ] Implement retry policy.
-- [ ] Implement event logging.
-- [ ] Commit scheduler hooks.
+- [x] Define scheduler job schema.
+- [x] Define allowed scheduler action set.
+- [x] Write tests for scheduler-created lab policy enforcement.
+- [x] Implement scheduler job storage.
+- [x] Implement enqueue path.
+- [x] Implement worker loop stub.
+- [x] Implement dispatch through same lab creation service.
+- [x] Implement quota checks.
+- [x] Implement retry policy.
+- [x] Implement event logging.
+- [x] Commit scheduler hooks.
 
 ---
 
@@ -909,7 +909,7 @@ These are the next concrete moves from today.
 - [ ] Implement export gate.
 - [ ] Implement approvals.
 - [ ] Implement CLI.
-- [ ] Implement scheduler hooks.
+- [x] Implement scheduler hooks.
 - [ ] Harden.
 - [ ] Release.
 

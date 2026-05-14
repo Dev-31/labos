@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from labos.core.enums import ActorType
+from labos.core.enums import ActorType, SchedulerAction, SchedulerJobState
 from labos.core.policy_models import RequesterType
 
 
@@ -162,6 +162,52 @@ class EventResponse(BaseModel):
     resource_type: str | None = None
     resource_id: str | None = None
     payload_json: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SchedulerJobCreateRequest(BaseModel):
+    action: SchedulerAction
+    requester_id: str = Field(min_length=1)
+    profile_name: str | None = None
+    lab_id: str | None = None
+    command: str | None = None
+    scheduled_for: datetime | None = None
+    max_attempts: int = Field(default=3, ge=1, le=10)
+
+    @model_validator(mode="after")
+    def validate_action_payload(self) -> SchedulerJobCreateRequest:
+        if self.action is SchedulerAction.CREATE_LAB:
+            if self.profile_name is None:
+                raise ValueError("profile_name is required for create_lab jobs")
+            if self.lab_id is not None or self.command is not None:
+                raise ValueError("create_lab jobs do not accept lab_id or command")
+        elif self.action is SchedulerAction.START_RUN:
+            if self.lab_id is None:
+                raise ValueError("lab_id is required for start_run jobs")
+            if self.command is None:
+                raise ValueError("command is required for start_run jobs")
+            if self.profile_name is not None:
+                raise ValueError("start_run jobs do not accept profile_name")
+        return self
+
+
+class SchedulerJobResponse(BaseModel):
+    id: str
+    action: SchedulerAction
+    state: SchedulerJobState
+    requester_id: str
+    profile_name: str | None = None
+    lab_id: str | None = None
+    command: str | None = None
+    scheduled_for: datetime
+    attempt_count: int
+    max_attempts: int
+    last_error: str | None = None
+    result_resource_type: str | None = None
+    result_resource_id: str | None = None
+    dispatched_at: datetime | None = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

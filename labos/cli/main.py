@@ -18,6 +18,7 @@ snapshots_app = typer.Typer(help="Create and inspect governed snapshot records")
 exports_app = typer.Typer(help="Request and inspect governed export records")
 approvals_app = typer.Typer(help="Inspect and decide approval requests")
 events_app = typer.Typer(help="Inspect audit and event records")
+scheduler_app = typer.Typer(help="Queue and dispatch scheduler-controlled jobs")
 app.add_typer(profiles_app, name="profiles")
 app.add_typer(labs_app, name="labs")
 app.add_typer(runs_app, name="runs")
@@ -25,6 +26,7 @@ app.add_typer(snapshots_app, name="snapshots")
 app.add_typer(exports_app, name="exports")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(events_app, name="events")
+app.add_typer(scheduler_app, name="scheduler")
 
 
 def _normalize_api_url(api_url: str) -> str:
@@ -335,3 +337,69 @@ def events_list(
 ) -> None:
     """List audit and event records."""
     _emit_json(_request_json(api_url=api_url, method="GET", path="/events"))
+
+
+@scheduler_app.command("enqueue")
+def scheduler_enqueue(
+    action: str,
+    requester_id: str = typer.Option(..., help="Scheduler identity recorded in audit metadata."),
+    profile_name: str | None = typer.Option(None, help="Profile to request for create-lab jobs."),
+    lab_id: str | None = typer.Option(None, help="Lab ID to target for start-run jobs."),
+    command: str | None = typer.Option(None, help="Command to queue for start-run jobs."),
+    scheduled_for: str | None = typer.Option(
+        None,
+        help="Optional RFC3339 timestamp for when the job becomes dispatchable.",
+    ),
+    max_attempts: int = typer.Option(3, min=1, help="Maximum scheduler dispatch attempts."),
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """Enqueue a scheduler job for governed lab or run requests."""
+    normalized_action = action.replace("-", "_")
+    if normalized_action not in {"create_lab", "start_run"}:
+        typer.echo("action must be one of: create-lab, start-run", err=True)
+        raise typer.Exit(code=1)
+
+    _emit_json(
+        _request_json(
+            api_url=api_url,
+            method="POST",
+            path="/scheduler/jobs",
+            payload={
+                "action": normalized_action,
+                "requester_id": requester_id,
+                "profile_name": profile_name,
+                "lab_id": lab_id,
+                "command": command,
+                "scheduled_for": scheduled_for,
+                "max_attempts": max_attempts,
+            },
+        )
+    )
+
+
+@scheduler_app.command("list")
+def scheduler_list(
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """List recorded scheduler jobs."""
+    _emit_json(_request_json(api_url=api_url, method="GET", path="/scheduler/jobs"))
+
+
+@scheduler_app.command("dispatch-next")
+def scheduler_dispatch_next(
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+) -> None:
+    """Dispatch the next eligible scheduler job through the control plane."""
+    _emit_json(_request_json(api_url=api_url, method="POST", path="/scheduler/jobs/dispatch-next"))

@@ -147,6 +147,51 @@ If the run does not exist, LabOS returns:
 {"detail": "resource_not_found", "resource": "run"}
 ```
 
+### `POST /scheduler/jobs`
+Queues a governed scheduler job for a later lab or run request.
+
+Supported actions:
+- `create_lab` — requires `profile_name`
+- `start_run` — requires `lab_id` and `command`
+
+Example request:
+
+```json
+{
+  "action": "create_lab",
+  "requester_id": "nightly-safe-dev",
+  "profile_name": "safe-dev",
+  "scheduled_for": "2026-05-14T01:00:00Z",
+  "max_attempts": 2
+}
+```
+
+If a requester already has too many queued or dispatched jobs, LabOS returns:
+
+```json
+{"detail": "scheduler_pending_job_quota_exceeded", "resource": "scheduler_job"}
+```
+
+### `GET /scheduler/jobs`
+Lists recorded scheduler job rows in queue order.
+
+Each row includes:
+- `action`
+- `state` (`queued`, `dispatched`, `succeeded`, `failed`)
+- `requester_id`
+- `scheduled_for`
+- `attempt_count` / `max_attempts`
+- `last_error`
+- `result_resource_type` / `result_resource_id`
+
+### `POST /scheduler/jobs/dispatch-next`
+Dispatches the next due queued scheduler job through the same governed lab/run creation helpers used by the direct API.
+
+Current API behavior is honest:
+- dispatch is an explicit control-plane worker stub, not a long-running daemon
+- `create_lab` jobs still trigger the same policy checks and approval flow as direct lab creation
+- `start_run` jobs currently record governed run intent only; runtime execution remains a later phase
+
 ### `GET /approvals`
 Lists recorded approval metadata rows.
 
@@ -281,6 +326,7 @@ Request validation errors return a stable machine-readable structure:
 These endpoints currently provide real control-plane behavior for:
 - managed lab metadata allocation
 - governed run metadata
+- scheduler job queueing and controlled dispatch through the same policy/audit paths
 - container-workspace snapshot create/restore
 - export quarantine, release, denial, and audit events
 

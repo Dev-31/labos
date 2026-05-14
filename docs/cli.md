@@ -32,6 +32,10 @@ labos approvals list
 labos approvals approve <approval-id> --actor operator --comment "manual review accepted"
 labos approvals deny <approval-id> --actor operator --comment "artifact denied"
 labos events list
+labos scheduler enqueue create-lab --requester-id nightly-safe-dev --profile safe-dev
+labos scheduler enqueue start-run --requester-id nightly-run --lab-id <lab-id> --command "python -m pytest"
+labos scheduler list
+labos scheduler dispatch-next
 ```
 
 ## Command groups
@@ -74,6 +78,14 @@ labos events list
 
 ### `labos events`
 - `list`
+
+### `labos scheduler`
+- `enqueue create-lab --requester-id <requester-id> --profile <profile-name> [--scheduled-for <iso8601>] [--max-attempts <n>]`
+- `enqueue start-run --requester-id <requester-id> --lab-id <lab-id> --command <command> [--scheduled-for <iso8601>] [--max-attempts <n>]`
+- `list`
+- `dispatch-next`
+
+`enqueue` only records governed scheduler jobs. `dispatch-next` is an operator-driven worker stub that reuses the same control-plane lab/run creation routes as direct API calls; it does **not** claim a full background scheduler or direct runtime execution yet.
 
 ## Output
 

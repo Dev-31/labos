@@ -13,7 +13,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from labos import __version__
 from labos.config.profiles.base import DEFAULT_PROFILES
 from labos.config.settings import Settings, load_settings
-from labos.core.enums import ActorType, ApprovalState, ExportState, LabState
+from labos.core.enums import (
+    ActorType,
+    ApprovalState,
+    ExportState,
+    LabState,
+    SchedulerAction,
+    SchedulerJobState,
+)
 from labos.core.events import EventRecord, EventWriter
 from labos.core.models import (
     ApprovalDecisionRequest,
@@ -29,6 +36,8 @@ from labos.core.models import (
     LabStorageResponse,
     RunCreateRequest,
     RunResponse,
+    SchedulerJobCreateRequest,
+    SchedulerJobResponse,
     SecretLeaseCreateRequest,
     SecretLeaseResponse,
     SecretLeaseRevokeRequest,
@@ -39,7 +48,7 @@ from labos.core.models import (
     ValidationErrorResponse,
 )
 from labos.core.policy_engine import PolicyEngine
-from labos.core.policy_models import PersistenceMode
+from labos.core.policy_models import PersistenceMode, RequesterType
 from labos.db.schema import (
     ApprovalRow,
     EventRow,
@@ -47,6 +56,7 @@ from labos.db.schema import (
     LabRow,
     LabStorageRow,
     RunRow,
+    SchedulerJobRow,
     SecretLeaseRow,
     SnapshotRow,
 )
@@ -70,6 +80,7 @@ from labos.storage.snapshots import (
     SnapshotMetadataError,
     UnsupportedSnapshotRuntimeError,
 )
+from labos.workers.scheduler import SchedulerQuotaExceededError, SchedulerService
 
 
 class ResourceNotFoundError(Exception):
@@ -327,6 +338,28 @@ def _event_response_from_row(row: EventRow) -> EventResponse:
     )
 
 
+def _scheduler_job_response_from_row(row: SchedulerJobRow) -> SchedulerJobResponse:
+    return SchedulerJobResponse(
+        id=row.id,
+        action=SchedulerAction(row.action),
+        state=SchedulerJobState(row.state),
+        requester_id=row.requester_id,
+        profile_name=row.profile_name,
+        lab_id=row.lab_id,
+        command=row.command,
+        scheduled_for=row.scheduled_for,
+        attempt_count=row.attempt_count,
+        max_attempts=row.max_attempts,
+        last_error=row.last_error,
+        result_resource_type=row.result_resource_type,
+        result_resource_id=row.result_resource_id,
+        dispatched_at=row.dispatched_at,
+        completed_at=row.completed_at,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
 def create_app(
     *,
     settings: Settings | None = None,
@@ -343,6 +376,7 @@ def create_app(
     snapshot_manager = SnapshotManager()
     export_gate = ExportGate(policy_engine=policy)
     secret_lease_service = SecretLeaseService(policy_engine=policy, broker=EnvSecretBroker())
+    scheduler_service = SchedulerService()
 
     app = FastAPI(title=app_settings.app_name, version=__version__)
 
@@ -380,23 +414,7 @@ def create_app(
             content=payload.model_dump(),
         )
 
-    @app.get("/health", response_model=HealthResponse)
-    def health() -> HealthResponse:
-        return HealthResponse()
-
-    @app.get("/profiles")
-    def list_profiles() -> list[dict[str, object]]:
-        return [DEFAULT_PROFILES[name].model_dump(mode="json") for name in sorted(DEFAULT_PROFILES)]
-
-    @app.get("/profiles/{profile_name}")
-    def get_profile(profile_name: str) -> dict[str, object]:
-        profile = DEFAULT_PROFILES.get(profile_name)
-        if profile is None:
-            raise ResourceNotFoundError("profile")
-        return profile.model_dump(mode="json")
-
-    @app.post("/labs", response_model=LabResponse, status_code=status.HTTP_201_CREATED)
-    def create_lab(request: LabCreateRequest) -> LabResponse:
+    def _create_lab_record(session: Session, request: LabCreateRequest) -> LabResponse:
         try:
             decision = policy.validate_request(
                 profile_name=request.profile_name,
@@ -408,7 +426,11 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-        lab_state = "pending_approval" if decision.approval_required else "approved"
+        lab_state = (
+            LabState.PENDING_APPROVAL.value
+            if decision.approval_required
+            else LabState.APPROVED.value
+        )
         lab_id = str(uuid4())
         allocation = storage_allocator.allocate(
             lab_id,
@@ -436,51 +458,98 @@ def create_app(
             snapshots_path=str(allocation.snapshots_path),
             workspace_mount_target=allocation.workspace_mount_target,
         )
-        with db_session_factory() as session:
-            session.add(row)
-            session.add(storage_row)
-            if decision.approval_required:
-                approval = _record_approval_request(
-                    session,
-                    lab_id=lab_id,
-                    resource_type="lab",
-                    resource_id=lab_id,
-                    action="lab.create",
-                    reason=", ".join(decision.approval_reasons),
-                    requested_by=request.requester_type,
-                )
-                _record_event(
-                    session,
-                    event_type="approval.requested",
-                    lab_id=lab_id,
-                    actor_type="system",
-                    actor_id="policy-engine",
-                    resource_type="approval",
-                    resource_id=approval.id,
-                    payload={
-                        "approval_id": approval.id,
-                        "resource_type": approval.resource_type,
-                        "resource_id": approval.resource_id,
-                        "action": approval.action,
-                    },
-                )
-            _record_event(
+        session.add(row)
+        session.add(storage_row)
+        if decision.approval_required:
+            approval = _record_approval_request(
                 session,
-                event_type="lab.requested",
                 lab_id=lab_id,
-                actor_type=request.requester_type.value,
                 resource_type="lab",
                 resource_id=lab_id,
+                action="lab.create",
+                reason=", ".join(decision.approval_reasons),
+                requested_by=request.requester_type,
+            )
+            _record_event(
+                session,
+                event_type="approval.requested",
+                lab_id=lab_id,
+                actor_type="system",
+                actor_id="policy-engine",
+                resource_type="approval",
+                resource_id=approval.id,
                 payload={
-                    "profile_name": decision.profile_name,
-                    "runtime_class": decision.runtime_class.value,
-                    "state": lab_state,
+                    "approval_id": approval.id,
+                    "resource_type": approval.resource_type,
+                    "resource_id": approval.resource_id,
+                    "action": approval.action,
                 },
             )
+        _record_event(
+            session,
+            event_type="lab.requested",
+            lab_id=lab_id,
+            actor_type=request.requester_type.value,
+            resource_type="lab",
+            resource_id=lab_id,
+            payload={
+                "profile_name": decision.profile_name,
+                "runtime_class": decision.runtime_class.value,
+                "state": lab_state,
+            },
+        )
+        session.flush()
+        session.refresh(row)
+        session.refresh(storage_row)
+        return _lab_response_from_row(row, storage_row)
+
+    def _create_run_record(session: Session, request: RunCreateRequest) -> RunResponse:
+        lab = session.get(LabRow, request.lab_id)
+        if lab is None:
+            raise ResourceNotFoundError("lab")
+
+        row = RunRow(
+            id=str(uuid4()),
+            lab_id=request.lab_id,
+            state="queued",
+            command=request.command,
+        )
+        session.add(row)
+        _record_event(
+            session,
+            event_type="run.queued",
+            lab_id=request.lab_id,
+            run_id=row.id,
+            actor_type=request.requester_type.value,
+            resource_type="run",
+            resource_id=row.id,
+            payload={"command": row.command, "state": row.state},
+        )
+        session.flush()
+        session.refresh(row)
+        return _run_response_from_row(row)
+
+    @app.get("/health", response_model=HealthResponse)
+    def health() -> HealthResponse:
+        return HealthResponse()
+
+    @app.get("/profiles")
+    def list_profiles() -> list[dict[str, object]]:
+        return [DEFAULT_PROFILES[name].model_dump(mode="json") for name in sorted(DEFAULT_PROFILES)]
+
+    @app.get("/profiles/{profile_name}")
+    def get_profile(profile_name: str) -> dict[str, object]:
+        profile = DEFAULT_PROFILES.get(profile_name)
+        if profile is None:
+            raise ResourceNotFoundError("profile")
+        return profile.model_dump(mode="json")
+
+    @app.post("/labs", response_model=LabResponse, status_code=status.HTTP_201_CREATED)
+    def create_lab(request: LabCreateRequest) -> LabResponse:
+        with db_session_factory() as session:
+            response = _create_lab_record(session, request)
             session.commit()
-            session.refresh(row)
-            session.refresh(storage_row)
-            return _lab_response_from_row(row, storage_row)
+            return response
 
     @app.get("/labs", response_model=list[LabResponse])
     def list_labs() -> list[LabResponse]:
@@ -623,30 +692,9 @@ def create_app(
     @app.post("/runs", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
     def create_run(request: RunCreateRequest) -> RunResponse:
         with db_session_factory() as session:
-            lab = session.get(LabRow, request.lab_id)
-            if lab is None:
-                raise ResourceNotFoundError("lab")
-
-            row = RunRow(
-                id=str(uuid4()),
-                lab_id=request.lab_id,
-                state="queued",
-                command=request.command,
-            )
-            session.add(row)
-            _record_event(
-                session,
-                event_type="run.queued",
-                lab_id=request.lab_id,
-                run_id=row.id,
-                actor_type=request.requester_type.value,
-                resource_type="run",
-                resource_id=row.id,
-                payload={"command": row.command, "state": row.state},
-            )
+            response = _create_run_record(session, request)
             session.commit()
-            session.refresh(row)
-            return _run_response_from_row(row)
+            return response
 
     @app.get("/runs", response_model=list[RunResponse])
     def list_runs() -> list[RunResponse]:
@@ -661,6 +709,106 @@ def create_app(
             if row is None:
                 raise ResourceNotFoundError("run")
             return _run_response_from_row(row)
+
+    @app.post(
+        "/scheduler/jobs",
+        response_model=SchedulerJobResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def enqueue_scheduler_job(request: SchedulerJobCreateRequest) -> SchedulerJobResponse:
+        with db_session_factory() as session:
+            try:
+                row = scheduler_service.enqueue(session, request)
+            except SchedulerQuotaExceededError as exc:
+                raise ConflictError(
+                    "scheduler_pending_job_quota_exceeded",
+                    resource="scheduler_job",
+                ) from exc
+
+            _record_event(
+                session,
+                event_type="scheduler_job.enqueued",
+                actor_type=ActorType.SCHEDULER.value,
+                actor_id=request.requester_id,
+                resource_type="scheduler_job",
+                resource_id=row.id,
+                payload={
+                    "action": row.action,
+                    "scheduled_for": row.scheduled_for.isoformat(),
+                    "max_attempts": row.max_attempts,
+                },
+            )
+            session.commit()
+            session.refresh(row)
+            return _scheduler_job_response_from_row(row)
+
+    @app.get("/scheduler/jobs", response_model=list[SchedulerJobResponse])
+    def list_scheduler_jobs() -> list[SchedulerJobResponse]:
+        with db_session_factory() as session:
+            rows = scheduler_service.list_jobs(session)
+            return [_scheduler_job_response_from_row(row) for row in rows]
+
+    @app.post("/scheduler/jobs/dispatch-next", response_model=SchedulerJobResponse)
+    def dispatch_next_scheduler_job() -> SchedulerJobResponse:
+        with db_session_factory() as session:
+            row = scheduler_service.run_next(
+                session,
+                create_lab=lambda profile_name: _create_lab_record(
+                    session,
+                    LabCreateRequest(
+                        profile_name=profile_name,
+                        requester_type=RequesterType.SCHEDULER,
+                    ),
+                ).id,
+                create_run=lambda lab_id, command: _create_run_record(
+                    session,
+                    RunCreateRequest(
+                        lab_id=lab_id,
+                        command=command,
+                        requester_type=RequesterType.SCHEDULER,
+                    ),
+                ).id,
+            )
+            if row is None:
+                raise ResourceNotFoundError("scheduler_job")
+
+            _record_event(
+                session,
+                event_type="scheduler_job.dispatched",
+                actor_type=ActorType.SYSTEM.value,
+                actor_id="scheduler-worker",
+                resource_type="scheduler_job",
+                resource_id=row.id,
+                payload={
+                    "action": row.action,
+                    "attempt_count": row.attempt_count,
+                },
+            )
+            terminal_state_event = (
+                "scheduler_job.succeeded"
+                if row.state == SchedulerJobState.SUCCEEDED.value
+                else "scheduler_job.failed"
+                if row.state == SchedulerJobState.FAILED.value
+                else "scheduler_job.requeued"
+            )
+            _record_event(
+                session,
+                event_type=terminal_state_event,
+                actor_type=ActorType.SYSTEM.value,
+                actor_id="scheduler-worker",
+                resource_type="scheduler_job",
+                resource_id=row.id,
+                payload={
+                    "state": row.state,
+                    "attempt_count": row.attempt_count,
+                    "last_error": row.last_error,
+                    "result_resource_type": row.result_resource_type,
+                    "result_resource_id": row.result_resource_id,
+                },
+            )
+            session.commit()
+            session.refresh(row)
+            return _scheduler_job_response_from_row(row)
 
     @app.get("/approvals", response_model=list[ApprovalResponse])
     def list_approvals() -> list[ApprovalResponse]:
