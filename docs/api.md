@@ -71,6 +71,30 @@ If the lab does not exist, LabOS returns:
 {"detail": "resource_not_found", "resource": "lab"}
 ```
 
+### `POST /labs/{lab_id}/secret-leases`
+Issues a time-bound secret lease for a lab from the configured control-plane secret broker.
+
+Example request:
+
+```json
+{
+  "secret_name": "API_TOKEN",
+  "requester_type": "human",
+  "ttl_minutes": 30
+}
+```
+
+Current API behavior is honest:
+- the secret name must already be allowlisted by the lab profile
+- the secret value must already exist in the control-plane environment as `LABOS_SECRET_<NAME>`
+- LabOS records lease metadata and audit events, but it does **not** persist plaintext secret values in the metadata database
+
+### `GET /labs/{lab_id}/secret-leases`
+Lists recorded secret lease metadata for a lab, including expiry and revocation timestamps.
+
+### `POST /secret-leases/{lease_id}/revoke`
+Revokes a previously issued secret lease and records a `secret_lease.revoked` audit event.
+
 ### `POST /runs`
 Creates a queued run record for an existing lab request.
 

@@ -38,7 +38,7 @@ These states are explicit so policy, storage, runtime, and API layers can share 
 
 ## Durable metadata
 - SQLAlchemy is the Phase 1 metadata layer.
-- Core durable tables are `labs`, `lab_storage`, `runs`, `approvals`, `exports`, `snapshots`, and `events`.
+- Core durable tables are `labs`, `lab_storage`, `runs`, `approvals`, `exports`, `snapshots`, `secret_leases`, and `events`.
 - Alembic migrations are committed under `alembic/versions/` and remain the supported schema upgrade path for local and CI environments.
 
 ## Managed lab filesystem

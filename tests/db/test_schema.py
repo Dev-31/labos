@@ -15,6 +15,7 @@ def test_metadata_contains_core_tables() -> None:
         "exports",
         "snapshots",
         "events",
+        "secret_leases",
     }.issubset(tables)
 
 
@@ -63,4 +64,19 @@ def test_events_table_contains_actor_and_resource_columns() -> None:
         "resource_type",
         "resource_id",
         "payload_json",
+    }.issubset(columns)
+
+
+def test_secret_leases_table_contains_tracking_columns() -> None:
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("secret_leases")}
+
+    assert {
+        "lab_id",
+        "secret_name",
+        "approved",
+        "expires_at",
+        "revoked_at",
     }.issubset(columns)

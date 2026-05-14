@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from labos.core.enums import ActorType
 from labos.core.policy_models import RequesterType
@@ -33,6 +33,28 @@ class LabResponse(BaseModel):
     state: str
     runtime_class: str
     storage: LabStorageResponse
+    created_at: datetime
+    updated_at: datetime
+
+
+class SecretLeaseCreateRequest(BaseModel):
+    secret_name: str
+    requester_type: RequesterType = RequesterType.HUMAN
+    ttl_minutes: int = Field(default=15, ge=1, le=24 * 60)
+
+
+class SecretLeaseRevokeRequest(BaseModel):
+    actor: str
+    reason: str | None = None
+
+
+class SecretLeaseResponse(BaseModel):
+    id: str
+    lab_id: str
+    secret_name: str
+    approved: bool
+    expires_at: datetime
+    revoked_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -29,6 +29,9 @@ from labos.core.models import (
     LabStorageResponse,
     RunCreateRequest,
     RunResponse,
+    SecretLeaseCreateRequest,
+    SecretLeaseResponse,
+    SecretLeaseRevokeRequest,
     SnapshotCreateRequest,
     SnapshotResponse,
     SnapshotRestoreRequest,
@@ -43,6 +46,7 @@ from labos.db.schema import (
     LabRow,
     LabStorageRow,
     RunRow,
+    SecretLeaseRow,
     SnapshotRow,
 )
 from labos.db.session import build_session_factory
@@ -51,6 +55,12 @@ from labos.security.export_gate import (
     ExportPolicyError,
     ExportSourceNotFoundError,
     ExportStateError,
+)
+from labos.security.secret_broker import (
+    EnvSecretBroker,
+    SecretLeaseService,
+    SecretLeaseStateError,
+    SecretNotFoundError,
 )
 from labos.storage import ManagedStorageAllocator, SnapshotManager, StoragePolicy
 from labos.storage.snapshots import (
@@ -246,6 +256,19 @@ def _export_response_from_row(row: ExportRow) -> ExportResponse:
     )
 
 
+def _secret_lease_response_from_row(row: SecretLeaseRow) -> SecretLeaseResponse:
+    return SecretLeaseResponse(
+        id=row.id,
+        lab_id=row.lab_id,
+        secret_name=row.secret_name,
+        approved=row.approved,
+        expires_at=row.expires_at,
+        revoked_at=row.revoked_at,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
 def _record_event(
     session: Session,
     *,
@@ -303,6 +326,7 @@ def create_app(
     )
     snapshot_manager = SnapshotManager()
     export_gate = ExportGate(policy_engine=policy)
+    secret_lease_service = SecretLeaseService(policy_engine=policy, broker=EnvSecretBroker())
 
     app = FastAPI(title=app_settings.app_name, version=__version__)
 
@@ -465,6 +489,89 @@ def create_app(
             if storage_row is None:
                 raise ResourceNotFoundError("lab_storage")
             return _lab_response_from_row(row, storage_row)
+
+    @app.post(
+        "/labs/{lab_id}/secret-leases",
+        response_model=SecretLeaseResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_secret_lease(lab_id: str, request: SecretLeaseCreateRequest) -> SecretLeaseResponse:
+        with db_session_factory() as session:
+            try:
+                lease = secret_lease_service.issue_lease(
+                    session,
+                    lab_id=lab_id,
+                    secret_name=request.secret_name,
+                    requester_type=request.requester_type,
+                    ttl_minutes=request.ttl_minutes,
+                )
+            except SecretNotFoundError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"secret value not found for {exc.secret_name}",
+                ) from exc
+            except LookupError as exc:
+                raise ResourceNotFoundError(str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(exc),
+                ) from exc
+
+            _record_event(
+                session,
+                event_type="secret_lease.issued",
+                lab_id=lab_id,
+                actor_type=request.requester_type.value,
+                resource_type="secret_lease",
+                resource_id=lease.id,
+                payload={
+                    "secret_name": lease.secret_name,
+                    "approved": lease.approved,
+                    "expires_at": lease.expires_at.isoformat(),
+                },
+            )
+            session.commit()
+            session.refresh(lease)
+            return _secret_lease_response_from_row(lease)
+
+    @app.get("/labs/{lab_id}/secret-leases", response_model=list[SecretLeaseResponse])
+    def list_secret_leases(lab_id: str) -> list[SecretLeaseResponse]:
+        with db_session_factory() as session:
+            if session.get(LabRow, lab_id) is None:
+                raise ResourceNotFoundError("lab")
+            leases = secret_lease_service.list_leases(session, lab_id=lab_id)
+            return [_secret_lease_response_from_row(lease) for lease in leases]
+
+    @app.post("/secret-leases/{lease_id}/revoke", response_model=SecretLeaseResponse)
+    def revoke_secret_lease(
+        lease_id: str, request: SecretLeaseRevokeRequest
+    ) -> SecretLeaseResponse:
+        with db_session_factory() as session:
+            try:
+                lease = secret_lease_service.revoke_lease(session, lease_id=lease_id)
+            except LookupError as exc:
+                raise ResourceNotFoundError(str(exc)) from exc
+            except SecretLeaseStateError as exc:
+                raise ConflictError(str(exc), resource="secret_lease") from exc
+
+            _record_event(
+                session,
+                event_type="secret_lease.revoked",
+                lab_id=lease.lab_id,
+                actor_type="human",
+                actor_id=request.actor,
+                resource_type="secret_lease",
+                resource_id=lease.id,
+                payload={
+                    "secret_name": lease.secret_name,
+                    "reason": request.reason,
+                    "revoked_at": lease.revoked_at.isoformat() if lease.revoked_at else None,
+                },
+            )
+            session.commit()
+            session.refresh(lease)
+            return _secret_lease_response_from_row(lease)
 
     @app.post("/runs", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
     def create_run(request: RunCreateRequest) -> RunResponse:

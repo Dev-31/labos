@@ -321,8 +321,8 @@ Labs, runs, approvals, exports, snapshots, and events survive process restarts.
 - [ ] Add approval requests table.
 - [ ] Add snapshots table.
 - [ ] Add export requests table.
-- [ ] Add audit events table.
-- [ ] Add secret leases table.
+- [x] Add audit events table.
+- [x] Add secret leases table.
 - [ ] Add scheduler jobs table.
 - [ ] Add indexes for lab status lookups.
 - [ ] Add indexes for run status lookups.
@@ -591,18 +591,18 @@ Secrets are explicitly requested, leased, injected, and revoked.
 - Build a broker interface and minimal local/provider-backed implementation.
 
 ### Steps
-- [ ] Define secret request schema.
-- [ ] Define secret lease schema.
-- [ ] Define lease expiry rules.
-- [ ] Write tests for empty-by-default secret injection.
-- [ ] Write tests for denied broad env passthrough.
-- [ ] Implement broker interface.
-- [ ] Implement minimal secret resolver.
-- [ ] Implement lease recording.
-- [ ] Implement runtime injection from lease only.
-- [ ] Implement lease revocation path.
-- [ ] Add audit events.
-- [ ] Commit secret broker.
+- [x] Define secret request schema.
+- [x] Define secret lease schema.
+- [x] Define lease expiry rules.
+- [x] Write tests for empty-by-default secret injection.
+- [x] Write tests for denied broad env passthrough.
+- [x] Implement broker interface.
+- [x] Implement minimal secret resolver.
+- [x] Implement lease recording.
+- [x] Implement runtime injection from lease only.
+- [x] Implement lease revocation path.
+- [x] Add audit events.
+- [x] Commit secret broker.
 
 ---
 

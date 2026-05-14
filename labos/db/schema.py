@@ -103,6 +103,21 @@ class SnapshotRow(TimestampedRow, Base):
     backend_ref: Mapped[str] = mapped_column(String(512), nullable=False)
 
 
+class SecretLeaseRow(TimestampedRow, Base):
+    __tablename__ = "secret_leases"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lab_id: Mapped[str] = mapped_column(
+        ForeignKey("labs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    secret_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    approved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class EventRow(TimestampedRow, Base):
     __tablename__ = "events"
 

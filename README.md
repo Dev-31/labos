@@ -46,7 +46,7 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 Operator-facing YAML examples live in `examples/profiles/`.
 
 ## Database and migrations
-- SQLAlchemy models for labs, managed storage allocations, runs, approvals, exports, snapshots, and audit events live in `labos/db/schema.py`.
+- SQLAlchemy models for labs, managed storage allocations, runs, approvals, exports, snapshots, secret leases, and audit events live in `labos/db/schema.py`.
 - Alembic migration scaffolding lives in `alembic/` with the initial schema in `alembic/versions/`.
 - The default database URL is documented in `.env.example`.
 
@@ -56,5 +56,6 @@ Operator-facing YAML examples live in `examples/profiles/`.
 - Export release copies are published under a managed `released/<export-id>/` directory only through the control-plane release endpoint.
 - Snapshot restore is currently limited to managed container workspaces.
 - High-risk lab creation and high-risk export release now create explicit approval records that can be listed and decided through the API.
+- Secret access is now brokered through explicit time-bound lease records; secret names must be allowlisted by profile and resolved from `LABOS_SECRET_<NAME>` at materialization time.
 - `GET /events` now returns actor/resource-aware audit rows and supports filter query parameters for event type, actor type, resource, lab, and run scope.
 - The CLI currently includes `labos approvals list`, `labos approvals approve`, and `labos approvals deny` against `LABOS_API_URL` (default `http://127.0.0.1:8000`).
