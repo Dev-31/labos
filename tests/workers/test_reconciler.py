@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from labos.core.enums import LabState
-from labos.db.schema import Base, EventRow, LabRow, LabStorageRow
+from labos.core.enums import ApprovalState, LabState
+from labos.db.schema import ApprovalRow, Base, EventRow, LabRow, LabStorageRow, SecretLeaseRow
 from labos.db.session import build_engine, build_session_factory
 from labos.runtimes.base import LabInspection
 from labos.workers.reconciler import ReconciliationService
@@ -113,3 +114,126 @@ def test_reconciler_detects_orphaned_runtime_labs(tmp_path: Path) -> None:
         .order_by(EventRow.created_at, EventRow.id)
     ).all()
     assert [event.event_type for event in orphan_events] == ["runtime_lab.orphan_detected"]
+
+
+def test_reconciler_expires_stale_pending_approvals_and_fails_lab(tmp_path: Path) -> None:
+    session = build_session(tmp_path)
+    now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+    lab_root = tmp_path / "managed" / "labs" / "lab-awaiting-approval"
+    lab_root.mkdir(parents=True)
+    session.add(
+        LabRow(
+            id="lab-awaiting-approval",
+            profile_name="research-persistent",
+            state=LabState.PENDING_APPROVAL.value,
+            runtime_class="container",
+        )
+    )
+    session.add(
+        LabStorageRow(
+            id="storage-awaiting-approval",
+            lab_id="lab-awaiting-approval",
+            persistence_mode="persistent",
+            root_path=str(lab_root),
+            workspace_path=str(lab_root / "workspace"),
+            exports_path=str(lab_root / "exports"),
+            quarantine_path=str(lab_root / "quarantine"),
+            snapshots_path=str(lab_root / "snapshots"),
+            workspace_mount_target="/lab/workspace",
+        )
+    )
+    session.add(
+        ApprovalRow(
+            id="approval-expired",
+            lab_id="lab-awaiting-approval",
+            resource_type="lab",
+            resource_id="lab-awaiting-approval",
+            action="lab.create",
+            reason="profile requires approval",
+            requested_by="scheduler",
+            state=ApprovalState.REQUESTED.value,
+            approved=False,
+            expires_at=now - timedelta(minutes=5),
+        )
+    )
+    session.commit()
+
+    reconciler = ReconciliationService(runtime_inventory=FakeRuntimeInventory(inspections=[]))
+    report = reconciler.reconcile(session, now=now)
+    session.commit()
+
+    approval = session.get(ApprovalRow, "approval-expired")
+    assert approval is not None
+    assert approval.state == ApprovalState.EXPIRED.value
+    assert approval.approved is False
+    assert approval.decided_by == "reconciler"
+    assert approval.decided_at is not None
+    assert approval.decided_at.replace(tzinfo=UTC) == now
+
+    lab = session.get(LabRow, "lab-awaiting-approval")
+    assert lab is not None
+    assert lab.state == LabState.FAILED.value
+
+    assert report.expired_approval_ids == ["approval-expired"]
+    events = session.scalars(
+        select(EventRow)
+        .where(EventRow.resource_id == "approval-expired")
+        .order_by(EventRow.created_at, EventRow.id)
+    ).all()
+    assert [event.event_type for event in events] == ["approval.expired"]
+
+
+def test_reconciler_revokes_expired_secret_leases(tmp_path: Path) -> None:
+    session = build_session(tmp_path)
+    now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+    lab_root = tmp_path / "managed" / "labs" / "lab-secret-cleanup"
+    lab_root.mkdir(parents=True)
+    session.add(
+        LabRow(
+            id="lab-secret-cleanup",
+            profile_name="safe-dev",
+            state=LabState.RUNNING.value,
+            runtime_class="container",
+        )
+    )
+    session.add(
+        LabStorageRow(
+            id="storage-secret-cleanup",
+            lab_id="lab-secret-cleanup",
+            persistence_mode="ephemeral",
+            root_path=str(lab_root),
+            workspace_path=str(lab_root / "workspace"),
+            exports_path=str(lab_root / "exports"),
+            quarantine_path=str(lab_root / "quarantine"),
+            snapshots_path=str(lab_root / "snapshots"),
+            workspace_mount_target="/lab/workspace",
+        )
+    )
+    session.add(
+        SecretLeaseRow(
+            id="lease-expired",
+            lab_id="lab-secret-cleanup",
+            secret_name="API_TOKEN",
+            approved=True,
+            expires_at=now - timedelta(minutes=1),
+            revoked_at=None,
+        )
+    )
+    session.commit()
+
+    reconciler = ReconciliationService(runtime_inventory=FakeRuntimeInventory(inspections=[]))
+    report = reconciler.reconcile(session, now=now)
+    session.commit()
+
+    lease = session.get(SecretLeaseRow, "lease-expired")
+    assert lease is not None
+    assert lease.revoked_at is not None
+    assert lease.revoked_at.replace(tzinfo=UTC) == now
+
+    assert report.revoked_secret_lease_ids == ["lease-expired"]
+    events = session.scalars(
+        select(EventRow)
+        .where(EventRow.resource_id == "lease-expired")
+        .order_by(EventRow.created_at, EventRow.id)
+    ).all()
+    assert [event.event_type for event in events] == ["secret_lease.expired"]
