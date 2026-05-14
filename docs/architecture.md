@@ -38,8 +38,14 @@ These states are explicit so policy, storage, runtime, and API layers can share 
 
 ## Durable metadata
 - SQLAlchemy is the Phase 1 metadata layer.
-- Core durable tables are `labs`, `runs`, `approvals`, `exports`, `snapshots`, and `events`.
+- Core durable tables are `labs`, `lab_storage`, `runs`, `approvals`, `exports`, `snapshots`, and `events`.
 - Alembic manages schema evolution so the control plane can move without hand-edited database drift.
+
+## Managed lab filesystem
+- LabOS reserves a managed filesystem root per lab under `LABOS_MANAGED_STORAGE_ROOT`.
+- Current path convention is `labs/<lab-id>/` with dedicated `workspace`, `exports`, `quarantine`, and `snapshots` subdirectories.
+- Storage allocation metadata is recorded separately from lab lifecycle metadata so later runtime, snapshot, and retention phases can evolve without overloading the `labs` table.
+- The control plane now rejects unmanaged host paths when validating managed storage sources.
 
 ## Runtime adapter boundary
 - `RuntimeAdapter` defines the public execution-plane contract: create, start, stop, destroy, exec, logs, and inspect.

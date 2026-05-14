@@ -30,6 +30,22 @@ class LabRow(TimestampedRow, Base):
     runtime_class: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
+class LabStorageRow(TimestampedRow, Base):
+    __tablename__ = "lab_storage"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    lab_id: Mapped[str] = mapped_column(
+        ForeignKey("labs.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    persistence_mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    root_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    workspace_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    exports_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    quarantine_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    snapshots_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    workspace_mount_target: Mapped[str] = mapped_column(String(128), nullable=False)
+
+
 class RunRow(TimestampedRow, Base):
     __tablename__ = "runs"
 

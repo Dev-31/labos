@@ -437,15 +437,15 @@ Labs write only to managed areas, and persistence behavior follows policy.
 - snapshot-capable persistent
 
 ### Steps
-- [ ] Define storage policy schema.
-- [ ] Define managed path conventions.
-- [ ] Separate metadata from runtime payload storage.
-- [ ] Implement lab workspace allocator.
+- [x] Define storage policy schema.
+- [x] Define managed path conventions.
+- [x] Separate metadata from runtime payload storage.
+- [x] Implement lab workspace allocator.
 - [ ] Implement ephemeral cleanup rules.
 - [ ] Implement persistent retention rules.
-- [ ] Write tests for forbidden host path mounts.
+- [x] Write tests for forbidden host path mounts.
 - [ ] Write tests for cleanup behavior.
-- [ ] Add storage metadata recording.
+- [x] Add storage metadata recording.
 - [ ] Commit storage layer.
 
 ---

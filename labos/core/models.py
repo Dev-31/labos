@@ -14,11 +14,22 @@ class LabCreateRequest(BaseModel):
     requester_type: str
 
 
+class LabStorageResponse(BaseModel):
+    persistence_mode: str
+    root_path: str
+    workspace_path: str
+    exports_path: str
+    quarantine_path: str
+    snapshots_path: str
+    workspace_mount_target: str
+
+
 class LabResponse(BaseModel):
     id: str
     profile_name: str
     state: str
     runtime_class: str
+    storage: LabStorageResponse
     created_at: datetime
     updated_at: datetime
 

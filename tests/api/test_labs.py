@@ -12,7 +12,12 @@ def build_test_client(tmp_path: Path) -> TestClient:
     engine = build_engine(database_url)
     Base.metadata.create_all(engine)
     session_factory = build_session_factory(database_url)
-    return TestClient(create_app(session_factory=session_factory))
+    return TestClient(
+        create_app(
+            session_factory=session_factory,
+            managed_storage_root=tmp_path / "managed-storage",
+        )
+    )
 
 
 def test_create_list_and_get_lab(tmp_path: Path) -> None:
@@ -28,6 +33,8 @@ def test_create_list_and_get_lab(tmp_path: Path) -> None:
     assert created["profile_name"] == "safe-dev"
     assert created["runtime_class"] == "container"
     assert created["state"] == "approved"
+    assert created["storage"]["workspace_path"].endswith("/labs/" + created["id"] + "/workspace")
+    assert created["storage"]["persistence_mode"] == "ephemeral"
 
     list_response = client.get("/labs")
 

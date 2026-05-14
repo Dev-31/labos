@@ -46,6 +46,11 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 Operator-facing YAML examples live in `examples/profiles/`.
 
 ## Database and migrations
-- SQLAlchemy models for labs, runs, approvals, exports, snapshots, and audit events live in `labos/db/schema.py`.
+- SQLAlchemy models for labs, managed storage allocations, runs, approvals, exports, snapshots, and audit events live in `labos/db/schema.py`.
 - Alembic migration scaffolding lives in `alembic/` with the initial schema in `alembic/versions/`.
 - The default database URL is documented in `.env.example`.
+
+## Managed storage
+- LabOS now allocates a managed lab filesystem root for each recorded lab request under `LABOS_MANAGED_STORAGE_ROOT` (default `./.labos/storage`).
+- Each lab gets reserved `workspace`, `exports`, `quarantine`, and `snapshots` paths, recorded in durable metadata.
+- This is storage planning and metadata allocation only; LabOS does not yet claim full cleanup, snapshot capture, or runtime restore semantics.

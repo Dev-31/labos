@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -19,6 +20,7 @@ from labos.core.models import (
     HealthResponse,
     LabCreateRequest,
     LabResponse,
+    LabStorageResponse,
     RunCreateRequest,
     RunResponse,
     SnapshotResponse,
@@ -26,8 +28,17 @@ from labos.core.models import (
     ValidationErrorResponse,
 )
 from labos.core.policy_engine import PolicyEngine
-from labos.db.schema import ApprovalRow, EventRow, ExportRow, LabRow, RunRow, SnapshotRow
+from labos.db.schema import (
+    ApprovalRow,
+    EventRow,
+    ExportRow,
+    LabRow,
+    LabStorageRow,
+    RunRow,
+    SnapshotRow,
+)
 from labos.db.session import build_session_factory
+from labos.storage import ManagedStorageAllocator, StoragePolicy
 
 
 class ResourceNotFoundError(Exception):
@@ -36,12 +47,21 @@ class ResourceNotFoundError(Exception):
         super().__init__(resource)
 
 
-def _lab_response_from_row(row: LabRow) -> LabResponse:
+def _lab_response_from_row(row: LabRow, storage: LabStorageRow) -> LabResponse:
     return LabResponse(
         id=row.id,
         profile_name=row.profile_name,
         state=row.state,
         runtime_class=row.runtime_class,
+        storage=LabStorageResponse(
+            persistence_mode=storage.persistence_mode,
+            root_path=storage.root_path,
+            workspace_path=storage.workspace_path,
+            exports_path=storage.exports_path,
+            quarantine_path=storage.quarantine_path,
+            snapshots_path=storage.snapshots_path,
+            workspace_mount_target=storage.workspace_mount_target,
+        ),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -107,10 +127,14 @@ def create_app(
     settings: Settings | None = None,
     session_factory: sessionmaker[Session] | None = None,
     policy_engine: PolicyEngine | None = None,
+    managed_storage_root: Path | None = None,
 ) -> FastAPI:
     app_settings = settings or load_settings()
     db_session_factory = session_factory or build_session_factory(app_settings.database_url)
     policy = policy_engine or PolicyEngine()
+    storage_allocator = ManagedStorageAllocator(
+        root=managed_storage_root or app_settings.managed_storage_root
+    )
 
     app = FastAPI(title=app_settings.app_name, version=__version__)
 
@@ -171,23 +195,51 @@ def create_app(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
         lab_state = "pending_approval" if decision.approval_required else "approved"
+        lab_id = str(uuid4())
+        allocation = storage_allocator.allocate(
+            lab_id,
+            StoragePolicy(
+                filesystem_mode=decision.filesystem_mode,
+                persistence_mode=decision.persistence_mode,
+                disk_mb=decision.disk_mb,
+                retention_days=decision.retention_days,
+            ),
+        )
         row = LabRow(
-            id=str(uuid4()),
+            id=lab_id,
             profile_name=decision.profile_name,
             state=lab_state,
             runtime_class=decision.runtime_class.value,
         )
+        storage_row = LabStorageRow(
+            id=str(uuid4()),
+            lab_id=lab_id,
+            persistence_mode=allocation.persistence_mode.value,
+            root_path=str(allocation.root_path),
+            workspace_path=str(allocation.workspace_path),
+            exports_path=str(allocation.exports_path),
+            quarantine_path=str(allocation.quarantine_path),
+            snapshots_path=str(allocation.snapshots_path),
+            workspace_mount_target=allocation.workspace_mount_target,
+        )
         with db_session_factory() as session:
             session.add(row)
+            session.add(storage_row)
             session.commit()
             session.refresh(row)
-            return _lab_response_from_row(row)
+            session.refresh(storage_row)
+            return _lab_response_from_row(row, storage_row)
 
     @app.get("/labs", response_model=list[LabResponse])
     def list_labs() -> list[LabResponse]:
         with db_session_factory() as session:
             rows = session.scalars(select(LabRow).order_by(LabRow.created_at, LabRow.id)).all()
-            return [_lab_response_from_row(row) for row in rows]
+            lab_ids = [row.id for row in rows]
+            storage_rows = session.scalars(
+                select(LabStorageRow).where(LabStorageRow.lab_id.in_(lab_ids))
+            ).all()
+            storage_by_lab_id = {row.lab_id: row for row in storage_rows}
+            return [_lab_response_from_row(row, storage_by_lab_id[row.id]) for row in rows]
 
     @app.get("/labs/{lab_id}", response_model=LabResponse)
     def get_lab(lab_id: str) -> LabResponse:
@@ -195,7 +247,12 @@ def create_app(
             row = session.get(LabRow, lab_id)
             if row is None:
                 raise ResourceNotFoundError("lab")
-            return _lab_response_from_row(row)
+            storage_row = session.scalar(
+                select(LabStorageRow).where(LabStorageRow.lab_id == row.id)
+            )
+            if storage_row is None:
+                raise ResourceNotFoundError("lab_storage")
+            return _lab_response_from_row(row, storage_row)
 
     @app.post("/runs", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
     def create_run(request: RunCreateRequest) -> RunResponse:

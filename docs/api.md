@@ -39,6 +39,15 @@ Example response:
   "profile_name": "safe-dev",
   "state": "approved",
   "runtime_class": "container",
+  "storage": {
+    "persistence_mode": "ephemeral",
+    "root_path": "./.labos/storage/labs/<uuid>",
+    "workspace_path": "./.labos/storage/labs/<uuid>/workspace",
+    "exports_path": "./.labos/storage/labs/<uuid>/exports",
+    "quarantine_path": "./.labos/storage/labs/<uuid>/quarantine",
+    "snapshots_path": "./.labos/storage/labs/<uuid>/snapshots",
+    "workspace_mount_target": "/workspace"
+  },
   "created_at": "2026-05-14T00:00:00Z",
   "updated_at": "2026-05-14T00:00:00Z"
 }
@@ -46,6 +55,7 @@ Example response:
 
 Current API behavior is honest:
 - this records governed lab requests in metadata
+- this allocates a managed lab filesystem layout and stores the allocation in metadata
 - it does **not** provision a container or microVM yet
 - approval-requiring profiles remain in `pending_approval`
 

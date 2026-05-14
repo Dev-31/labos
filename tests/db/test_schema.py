@@ -8,6 +8,7 @@ def test_metadata_contains_core_tables() -> None:
     tables = set(Base.metadata.tables.keys())
     assert {
         "labs",
+        "lab_storage",
         "runs",
         "approvals",
         "exports",
