@@ -463,16 +463,16 @@ A lab or its managed state can be snapshotted and restored according to policy.
 - Do not fake full VM-grade time-travel if it does not exist yet.
 
 ### Steps
-- [ ] Define snapshot request model.
-- [ ] Define snapshot metadata schema.
-- [ ] Define snapshot storage location.
-- [ ] Write tests for snapshot creation flow.
-- [ ] Implement snapshot capture for supported storage mode.
-- [ ] Record provenance: lab, run, profile, timestamp, hashes.
-- [ ] Implement snapshot list API.
-- [ ] Implement snapshot restore request validation.
-- [ ] Implement restore path for supported snapshot type.
-- [ ] Add failure handling for unsupported runtime/snapshot combo.
+- [x] Define snapshot request model.
+- [x] Define snapshot metadata schema.
+- [x] Define snapshot storage location.
+- [x] Write tests for snapshot creation flow.
+- [x] Implement snapshot capture for supported storage mode.
+- [x] Record provenance: lab, run, profile, timestamp, hashes.
+- [x] Implement snapshot list API.
+- [x] Implement snapshot restore request validation.
+- [x] Implement restore path for supported snapshot type.
+- [x] Add failure handling for unsupported runtime/snapshot combo.
 - [ ] Commit snapshot module.
 
 ---

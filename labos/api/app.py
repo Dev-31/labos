@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -23,7 +24,9 @@ from labos.core.models import (
     LabStorageResponse,
     RunCreateRequest,
     RunResponse,
+    SnapshotCreateRequest,
     SnapshotResponse,
+    SnapshotRestoreRequest,
     ValidationErrorItem,
     ValidationErrorResponse,
 )
@@ -38,13 +41,25 @@ from labos.db.schema import (
     SnapshotRow,
 )
 from labos.db.session import build_session_factory
-from labos.storage import ManagedStorageAllocator, StoragePolicy
+from labos.storage import ManagedStorageAllocator, SnapshotManager, StoragePolicy
+from labos.storage.snapshots import (
+    SnapshotMetadata,
+    SnapshotMetadataError,
+    UnsupportedSnapshotRuntimeError,
+)
 
 
 class ResourceNotFoundError(Exception):
     def __init__(self, resource: str) -> None:
         self.resource = resource
         super().__init__(resource)
+
+
+class ConflictError(Exception):
+    def __init__(self, detail: str, resource: str | None = None) -> None:
+        self.detail = detail
+        self.resource = resource
+        super().__init__(detail)
 
 
 def _lab_response_from_row(row: LabRow, storage: LabStorageRow) -> LabResponse:
@@ -89,11 +104,25 @@ def _approval_response_from_row(row: ApprovalRow) -> ApprovalResponse:
     )
 
 
-def _snapshot_response_from_row(row: SnapshotRow) -> SnapshotResponse:
+def _snapshot_response_from_row(
+    row: SnapshotRow,
+    metadata: SnapshotMetadata | None = None,
+) -> SnapshotResponse:
     return SnapshotResponse(
         id=row.id,
         lab_id=row.lab_id,
         backend_ref=row.backend_ref,
+        run_id=None if metadata is None else metadata.run_id,
+        profile_name=None if metadata is None else metadata.profile_name,
+        runtime_class=None if metadata is None else metadata.runtime_class,
+        state=None if metadata is None else metadata.state,
+        manifest_path=None if metadata is None else metadata.manifest_path,
+        sha256=None if metadata is None else metadata.sha256,
+        size_bytes=None if metadata is None else metadata.size_bytes,
+        restored_at=None
+        if metadata is None or metadata.restored_at is None
+        else datetime.fromisoformat(metadata.restored_at),
+        restored_lab_id=None if metadata is None else metadata.restored_lab_id,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -135,6 +164,7 @@ def create_app(
     storage_allocator = ManagedStorageAllocator(
         root=managed_storage_root or app_settings.managed_storage_root
     )
+    snapshot_manager = SnapshotManager()
 
     app = FastAPI(title=app_settings.app_name, version=__version__)
 
@@ -145,6 +175,12 @@ def create_app(
         del request
         payload = ErrorResponse(detail="resource_not_found", resource=exc.resource)
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=payload.model_dump())
+
+    @app.exception_handler(ConflictError)
+    async def conflict_error_handler(request: Request, exc: ConflictError) -> JSONResponse:
+        del request
+        payload = ErrorResponse(detail=exc.detail, resource=exc.resource)
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content=payload.model_dump())
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
@@ -300,7 +336,78 @@ def create_app(
             rows = session.scalars(
                 select(SnapshotRow).order_by(SnapshotRow.created_at, SnapshotRow.id)
             ).all()
-            return [_snapshot_response_from_row(row) for row in rows]
+            return [
+                _snapshot_response_from_row(
+                    row,
+                    snapshot_manager.load_metadata(row),
+                )
+                for row in rows
+            ]
+
+    @app.post("/snapshots", response_model=SnapshotResponse, status_code=status.HTTP_201_CREATED)
+    def create_snapshot(request: SnapshotCreateRequest) -> SnapshotResponse:
+        with db_session_factory() as session:
+            lab = session.get(LabRow, request.lab_id)
+            if lab is None:
+                raise ResourceNotFoundError("lab")
+            storage_row = session.scalar(
+                select(LabStorageRow).where(LabStorageRow.lab_id == request.lab_id)
+            )
+            if storage_row is None:
+                raise ResourceNotFoundError("lab_storage")
+
+            if request.run_id is not None:
+                run = session.get(RunRow, request.run_id)
+                if run is None:
+                    raise ResourceNotFoundError("run")
+                if run.lab_id != lab.id:
+                    raise ConflictError("snapshot_run_mismatch", resource="snapshot")
+
+            snapshot_id = str(uuid4())
+            try:
+                metadata = snapshot_manager.create_snapshot(
+                    snapshot_id,
+                    lab=lab,
+                    storage=storage_row,
+                    run_id=request.run_id,
+                )
+            except UnsupportedSnapshotRuntimeError as exc:
+                raise ConflictError("unsupported_snapshot_runtime", resource="snapshot") from exc
+
+            row = SnapshotRow(id=snapshot_id, lab_id=lab.id, backend_ref=metadata.backend_ref)
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            return _snapshot_response_from_row(row, metadata)
+
+    @app.post("/snapshots/{snapshot_id}/restore", response_model=SnapshotResponse)
+    def restore_snapshot(snapshot_id: str, request: SnapshotRestoreRequest) -> SnapshotResponse:
+        with db_session_factory() as session:
+            snapshot = session.get(SnapshotRow, snapshot_id)
+            if snapshot is None:
+                raise ResourceNotFoundError("snapshot")
+
+            target_lab = session.get(LabRow, request.lab_id)
+            if target_lab is None:
+                raise ResourceNotFoundError("lab")
+            target_storage = session.scalar(
+                select(LabStorageRow).where(LabStorageRow.lab_id == target_lab.id)
+            )
+            if target_storage is None:
+                raise ResourceNotFoundError("lab_storage")
+
+            try:
+                metadata = snapshot_manager.restore_snapshot(
+                    snapshot,
+                    target_lab=target_lab,
+                    target_storage=target_storage,
+                )
+            except UnsupportedSnapshotRuntimeError as exc:
+                raise ConflictError("unsupported_snapshot_runtime", resource="snapshot") from exc
+            except SnapshotMetadataError as exc:
+                raise ConflictError(str(exc), resource="snapshot") from exc
+
+            return _snapshot_response_from_row(snapshot, metadata)
 
     @app.get("/exports", response_model=list[ExportResponse])
     def list_exports() -> list[ExportResponse]:

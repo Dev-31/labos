@@ -57,10 +57,28 @@ class ApprovalResponse(BaseModel):
     updated_at: datetime
 
 
+class SnapshotCreateRequest(BaseModel):
+    lab_id: str
+    run_id: str | None = None
+
+
+class SnapshotRestoreRequest(BaseModel):
+    lab_id: str
+
+
 class SnapshotResponse(BaseModel):
     id: str
     lab_id: str
     backend_ref: str
+    run_id: str | None = None
+    profile_name: str | None = None
+    runtime_class: str | None = None
+    state: str | None = None
+    manifest_path: str | None = None
+    sha256: str | None = None
+    size_bytes: int | None = None
+    restored_at: datetime | None = None
+    restored_lab_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
