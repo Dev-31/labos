@@ -54,6 +54,7 @@ def test_contributing_doc_covers_setup_verification_and_scope_guardrails() -> No
 def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     release_checklist = _read("docs/release-checklist.md")
     changelog = _read("CHANGELOG.md")
+    readme = _read("README.md")
 
     assert "# LabOS v0.1 Release Checklist" in release_checklist
     assert "## Verification commands" in release_checklist
@@ -62,6 +63,8 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "uv run mypy" in release_checklist
     assert "docker" in release_checklist.lower()
     assert "documentation" in release_checklist.lower()
+    assert "uv run pytest -q tests/integration/test_docker_runtime_smoke.py" in release_checklist
+    assert "docker integration smoke" in readme.lower()
 
     assert "# Changelog" in changelog
     assert "## v0.1.0 (unreleased)" in changelog

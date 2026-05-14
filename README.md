@@ -95,8 +95,18 @@ make run-api
 - `tests/api/` — public control-plane endpoints
 - `tests/cli/` — operator CLI wrappers
 - `tests/runtimes/` — runtime adapter behavior and honesty boundaries
+- `tests/integration/test_docker_runtime_smoke.py` — optional real-Docker smoke for the adapter path; skips cleanly when no local Docker daemon is available
 - `tests/workers/` — scheduler/reconciliation cleanup logic
 - `tests/security/` — threat-model enforcement checks
+
+### Docker integration smoke
+When a real local Docker daemon is available, run:
+
+```bash
+uv run pytest -q tests/integration/test_docker_runtime_smoke.py
+```
+
+This smoke test exercises the implemented Docker adapter directly. If Docker is missing or the daemon is unreachable, the test skips and the Phase 18 release gate remains open by design.
 
 ## Architecture map
 ```text
@@ -188,4 +198,4 @@ Detailed profile docs live in `docs/lab-profiles.md` and YAML examples live in `
 - `SECURITY.md` — security reporting and disclosure policy
 
 ## Roadmap status
-The active release-readiness gate in `ROADMAP.md` / `docs/plans/2026-05-13-labos-roadmap.md` now has release checklist/changelog coverage plus verified tests, lint, type checks, install smoke, and docs-command smoke. The remaining public-core work before a `v0.1.0` tag is local Docker integration validation and the final tagging decision.
+The active release-readiness gate in `ROADMAP.md` / `docs/plans/2026-05-13-labos-roadmap.md` now has release checklist/changelog coverage plus verified tests, lint, type checks, install smoke, docs-command smoke, and a concrete Docker smoke command. The remaining public-core work before a `v0.1.0` tag is running that smoke on a host with a real Docker daemon and then making the final tagging decision.

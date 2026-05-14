@@ -41,6 +41,9 @@ packages = ["labos"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+markers = [
+  "integration: requires Docker daemon and exercises the real runtime adapter",
+]
 
 [tool.ruff]
 line-length = 100

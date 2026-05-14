@@ -15,9 +15,12 @@ Run these from the repo root with the project environment:
 uv run pytest -q
 uv run ruff check .
 uv run mypy
+uv run pytest -q tests/integration/test_docker_runtime_smoke.py
 ```
 
 Record the command outputs or CI links used for the release decision.
+
+If the host does not have a reachable Docker daemon, do not check off the Docker integration gate. Capture the exact probe failure and leave release tagging blocked until the smoke test passes on a real local Docker setup.
 
 ## Release checklist
 - [ ] Confirm `git status --short` is clean before tagging.
