@@ -80,6 +80,18 @@ class FakeContainerManager:
     def get(self, name: str) -> FakeContainer:
         return self.by_name[name]
 
+    def list(self, all: bool = False, filters: dict[str, str] | None = None) -> list[FakeContainer]:
+        del all
+        label_filter = None if filters is None else filters.get("label")
+        if label_filter is None:
+            return list(self.by_name.values())
+        key, expected = label_filter.split("=", maxsplit=1)
+        return [
+            container
+            for container in self.by_name.values()
+            if container.labels.get(key) == expected
+        ]
+
 
 @dataclass
 class FakeNetwork:
@@ -236,6 +248,22 @@ def test_runtime_cleans_up_network_and_volumes_when_container_create_fails() -> 
 
     assert client.networks.get("labos-net-lab-123").removed is True
     assert client.volumes.get("labos-work-lab-123").removed is True
+
+
+def test_runtime_lists_only_labos_managed_labs() -> None:
+    runtime, client = build_runtime()
+    runtime.create_lab("lab-123", build_spec())
+    client.containers.by_name["external-app"] = FakeContainer(
+        name="external-app",
+        image="busybox",
+        labels={"owner": "someone-else"},
+    )
+
+    inspections = runtime.list_managed_labs()
+
+    assert [inspection.lab_id for inspection in inspections] == ["lab-123"]
+    assert inspections[0].container_name == "labos-lab-123"
+    assert inspections[0].backend == "docker"
 
 
 def test_runtime_can_start_stop_exec_inspect_logs_and_destroy_lab() -> None:

@@ -40,6 +40,26 @@ class DockerRuntime:
             labels.update(dict(extra_labels))
         return labels
 
+    def list_managed_labs(self) -> list[LabInspection]:
+        containers = self._client.containers.list(all=True, filters={"label": "labos.managed=true"})
+        inspections: list[LabInspection] = []
+        for container in containers:
+            labels = dict(cast(dict[str, str], getattr(container, "labels", {})))
+            lab_id = labels.get("labos.lab_id")
+            if lab_id is None:
+                continue
+            inspections.append(
+                LabInspection(
+                    lab_id=lab_id,
+                    backend=self.backend_name(),
+                    container_name=str(getattr(container, "name", self.container_name(lab_id))),
+                    status=str(getattr(container, "status", "unknown")),
+                    labels=labels,
+                )
+            )
+        inspections.sort(key=lambda inspection: inspection.lab_id)
+        return inspections
+
     def create_lab(self, lab_id: str, spec: RuntimeSpec) -> ProvisionedLab:
         container_name = self.container_name(lab_id)
         network_name = None if spec.network_mode is NetworkMode.DENY else self.network_name(lab_id)

@@ -61,12 +61,18 @@ These states are explicit so policy, storage, runtime, and API layers can share 
 - MicroVM/runtime-level memory snapshots are not implemented yet and LabOS returns an explicit unsupported-runtime error instead of pretending to offer VM-grade time travel.
 
 ## Runtime adapter boundary
-- `RuntimeAdapter` defines the public execution-plane contract: create, start, stop, destroy, exec, logs, and inspect.
+- `RuntimeAdapter` defines the public execution-plane contract: create, start, stop, destroy, exec, logs, inspect, and managed-lab inventory for reconciliation.
 - `DockerRuntime` is the Phase 1 backend and uses managed naming conventions for containers (`labos-<lab_id>`) and networks (`labos-net-<lab_id>`).
 - Secret injection is explicit and gated through approved, non-expired `SecretLease` records only.
 - CPU and memory limits are applied at container creation time.
 - Docker network mode is conservative: `deny` maps to `network_disabled`, while non-deny modes use LabOS-managed networks. This is not yet a full egress allowlist engine.
 - Persistent-volume lifecycle policy remains a separate storage-layer concern. The runtime attaches managed volumes but does not claim snapshot or retention semantics that do not exist yet.
+
+## Reliability and reconciliation
+- The Phase 1 worker layer now includes a reconciliation service that scans durable metadata for half-created labs before they silently drift.
+- Labs missing a storage record or managed storage root are marked `failed` and recorded with `lab.reconciliation_failed` audit events.
+- Runtime inventory can be queried for LabOS-managed containers so orphaned runtime artifacts are detected and surfaced as `runtime_lab.orphan_detected` events.
+- This is detection and state repair only; LabOS still does not pretend to offer full self-healing runtime orchestration.
 
 ## Product boundaries
 - public core platform only

@@ -681,10 +681,10 @@ Make the platform recover from reality instead of only happy paths.
 LabOS can detect and clean broken runtime state.
 
 ### Steps
-- [ ] Write tests for runtime create failure cleanup.
-- [ ] Write tests for half-created lab reconciliation.
-- [ ] Write tests for orphaned container detection.
-- [ ] Implement reconciliation job.
+- [x] Write tests for runtime create failure cleanup.
+- [x] Write tests for half-created lab reconciliation.
+- [x] Write tests for orphaned container detection.
+- [x] Implement reconciliation job.
 - [ ] Implement stale pending approval cleanup.
 - [ ] Implement stale secret lease cleanup.
 - [ ] Implement timed-out run handling.
