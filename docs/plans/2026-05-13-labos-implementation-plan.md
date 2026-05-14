@@ -675,7 +675,7 @@ git commit -m "feat: add durable schema for labs runs approvals exports snapshot
 - Modify: `labos/runtimes/base.py`
 - Create: `tests/runtimes/test_docker_runtime.py`
 
-- [ ] **Step 1: Write failing runtime contract tests**
+- [x] **Step 1: Write failing runtime contract tests**
 
 ```python
 # tests/runtimes/test_docker_runtime.py
@@ -699,12 +699,12 @@ def test_runtime_spec_contains_network_and_persistence():
     assert spec.network_mode == "restricted"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/runtimes/test_docker_runtime.py -v`
 Expected: FAIL because contract is missing
 
-- [ ] **Step 3: Define the runtime interface**
+- [x] **Step 3: Define the runtime interface**
 
 ```python
 # labos/runtimes/base.py
@@ -728,7 +728,7 @@ class RuntimeAdapter(Protocol):
     def exec_run(self, lab_id: str, command: str) -> dict: ...
 ```
 
-- [ ] **Step 4: Implement Docker adapter skeleton**
+- [x] **Step 4: Implement Docker adapter skeleton**
 
 ```python
 # labos/runtimes/docker_runtime.py
@@ -760,12 +760,12 @@ class DockerRuntime:
         }
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pytest tests/runtimes/test_docker_runtime.py -v`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add labos/runtimes/base.py labos/runtimes/docker_runtime.py tests/runtimes/test_docker_runtime.py

@@ -41,6 +41,14 @@ These states are explicit so policy, storage, runtime, and API layers can share 
 - Core durable tables are `labs`, `runs`, `approvals`, `exports`, `snapshots`, and `events`.
 - Alembic manages schema evolution so the control plane can move without hand-edited database drift.
 
+## Runtime adapter boundary
+- `RuntimeAdapter` defines the public execution-plane contract: create, start, stop, destroy, exec, logs, and inspect.
+- `DockerRuntime` is the Phase 1 backend and uses managed naming conventions for containers (`labos-<lab_id>`) and networks (`labos-net-<lab_id>`).
+- Secret injection is explicit and gated through approved, non-expired `SecretLease` records only.
+- CPU and memory limits are applied at container creation time.
+- Docker network mode is conservative: `deny` maps to `network_disabled`, while non-deny modes use LabOS-managed networks. This is not yet a full egress allowlist engine.
+- Persistent-volume lifecycle policy remains a separate storage-layer concern. The runtime attaches managed volumes but does not claim snapshot or retention semantics that do not exist yet.
+
 ## Product boundaries
 - public core platform only
 - no private datasets, profiles, or strategy packs in this repo

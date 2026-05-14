@@ -395,30 +395,30 @@ A lab can be provisioned, executed in, inspected, and destroyed through the adap
 - enforce resource limits
 
 ### Steps
-- [ ] Define `RuntimeAdapter` interface.
-- [ ] Define runtime request object.
-- [ ] Define runtime result object.
-- [ ] Write adapter contract tests.
-- [ ] Implement Docker client wrapper.
-- [ ] Implement container naming convention.
-- [ ] Implement managed network naming convention.
-- [ ] Implement managed volume naming convention.
-- [ ] Implement container create path.
-- [ ] Apply CPU limits.
-- [ ] Apply memory limits.
-- [ ] Apply storage mounts.
-- [ ] Apply env injection only from approved secret leases.
-- [ ] Apply network restrictions from policy.
-- [ ] Add label set for traceability.
-- [ ] Implement start path.
-- [ ] Implement stop path.
-- [ ] Implement destroy path.
-- [ ] Implement run execution path.
-- [ ] Implement log retrieval path.
-- [ ] Implement inspect path.
-- [ ] Implement runtime cleanup on failure path.
+- [x] Define `RuntimeAdapter` interface.
+- [x] Define runtime request object.
+- [x] Define runtime result object.
+- [x] Write adapter contract tests.
+- [x] Implement Docker client wrapper.
+- [x] Implement container naming convention.
+- [x] Implement managed network naming convention.
+- [x] Implement managed volume naming convention.
+- [x] Implement container create path.
+- [x] Apply CPU limits.
+- [x] Apply memory limits.
+- [x] Apply storage mounts.
+- [x] Apply env injection only from approved secret leases.
+- [x] Apply network restrictions from policy.
+- [x] Add label set for traceability.
+- [x] Implement start path.
+- [x] Implement stop path.
+- [x] Implement destroy path.
+- [x] Implement run execution path.
+- [x] Implement log retrieval path.
+- [x] Implement inspect path.
+- [x] Implement runtime cleanup on failure path.
 - [ ] Add integration test against local Docker.
-- [ ] Commit Docker adapter.
+- [x] Commit Docker adapter.
 
 ---
 
