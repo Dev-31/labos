@@ -446,7 +446,7 @@ Labs write only to managed areas, and persistence behavior follows policy.
 - [x] Write tests for forbidden host path mounts.
 - [x] Write tests for cleanup behavior.
 - [x] Add storage metadata recording.
-- [ ] Commit storage layer.
+- [x] Commit storage layer.
 
 ---
 
