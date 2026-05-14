@@ -1,0 +1,52 @@
+from __future__ import annotations
+
+import json
+
+from typer.testing import CliRunner
+
+from labos.cli.main import app
+from labos.runtimes.docker_probe import DockerEnvironmentProbe
+
+runner = CliRunner()
+
+
+def test_runtime_probe_docker_reports_ready_environment(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "labos.cli.main.probe_docker_environment",
+        lambda: DockerEnvironmentProbe(
+            cli_present=True,
+            daemon_reachable=True,
+            detail="docker CLI and daemon are available",
+        ),
+    )
+
+    result = runner.invoke(app, ["runtime", "probe-docker"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "cli_present": True,
+        "daemon_reachable": True,
+        "detail": "docker CLI and daemon are available",
+        "ready": True,
+    }
+
+
+def test_runtime_probe_docker_fails_when_environment_is_not_ready(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "labos.cli.main.probe_docker_environment",
+        lambda: DockerEnvironmentProbe(
+            cli_present=False,
+            daemon_reachable=False,
+            detail="docker CLI is not installed or not on PATH",
+        ),
+    )
+
+    result = runner.invoke(app, ["runtime", "probe-docker"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == {
+        "cli_present": False,
+        "daemon_reachable": False,
+        "detail": "docker CLI is not installed or not on PATH",
+        "ready": False,
+    }

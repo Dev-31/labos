@@ -32,6 +32,7 @@ labos approvals list
 labos approvals approve <approval-id> --actor operator --comment "manual review accepted"
 labos approvals deny <approval-id> --actor operator --comment "artifact denied"
 labos events list
+labos runtime probe-docker
 labos scheduler enqueue create-lab --requester-id nightly-safe-dev --profile safe-dev
 labos scheduler enqueue start-run --requester-id nightly-run --lab-id <lab-id> --command "python -m pytest"
 labos scheduler list
@@ -78,6 +79,11 @@ labos scheduler dispatch-next
 
 ### `labos events`
 - `list`
+
+### `labos runtime`
+- `probe-docker`
+
+`probe-docker` reports whether the optional real-Docker smoke test can run on the current host. It prints JSON with `cli_present`, `daemon_reachable`, `detail`, and `ready`, then exits non-zero when the environment is not actually ready.
 
 ### `labos scheduler`
 - `enqueue create-lab --requester-id <requester-id> --profile <profile-name> [--scheduled-for <iso8601>] [--max-attempts <n>]`

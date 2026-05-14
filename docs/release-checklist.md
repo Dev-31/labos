@@ -15,12 +15,13 @@ Run these from the repo root with the project environment:
 uv run pytest -q
 uv run ruff check .
 uv run mypy
+labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
 ```
 
 Record the command outputs or CI links used for the release decision.
 
-If the host does not have a reachable Docker daemon, do not check off the Docker integration gate. Capture the exact probe failure and leave release tagging blocked until the smoke test passes on a real local Docker setup.
+If the host does not have a reachable Docker daemon, do not check off the Docker integration gate. Capture the exact `labos runtime probe-docker` failure detail and leave release tagging blocked until the smoke test passes on a real local Docker setup.
 
 ## Release checklist
 - [ ] Confirm `git status --short` is clean before tagging.
@@ -34,6 +35,7 @@ If the host does not have a reachable Docker daemon, do not check off the Docker
 - [ ] Start the API (`uv run uvicorn labos.api.app:app`).
 - [ ] Re-run quickstart/API smoke commands from the docs and verify the responses.
 - [ ] Validate CLI help and representative commands against a live API.
+- [ ] Run `labos runtime probe-docker` and record the exact readiness output.
 - [ ] Validate local Docker integration from scratch, including the adapter honesty boundary and any runtime smoke tests that are actually supported by the repo.
 - [ ] Re-read README, `docs/api.md`, and `docs/cli.md` so documentation commands and honesty boundaries still match implementation.
 - [ ] Review `SECURITY.md` and threat-model docs for accurate disclosure/reporting instructions.

@@ -7,6 +7,7 @@ import httpx
 import typer
 
 from labos import __version__
+from labos.runtimes.docker_probe import probe_docker_environment
 
 DEFAULT_API_URL = "http://127.0.0.1:8000"
 
@@ -19,6 +20,7 @@ exports_app = typer.Typer(help="Request and inspect governed export records")
 approvals_app = typer.Typer(help="Inspect and decide approval requests")
 events_app = typer.Typer(help="Inspect audit and event records")
 scheduler_app = typer.Typer(help="Queue and dispatch scheduler-controlled jobs")
+runtime_app = typer.Typer(help="Inspect runtime adapter readiness and honesty boundaries")
 app.add_typer(profiles_app, name="profiles")
 app.add_typer(labs_app, name="labs")
 app.add_typer(runs_app, name="runs")
@@ -27,6 +29,7 @@ app.add_typer(exports_app, name="exports")
 app.add_typer(approvals_app, name="approvals")
 app.add_typer(events_app, name="events")
 app.add_typer(scheduler_app, name="scheduler")
+app.add_typer(runtime_app, name="runtime")
 
 
 def _normalize_api_url(api_url: str) -> str:
@@ -76,6 +79,22 @@ def _parse_json_object(option_name: str, raw_value: str | None) -> dict[str, Any
 def version() -> None:
     """Print the LabOS CLI version."""
     typer.echo(__version__)
+
+
+@runtime_app.command("probe-docker")
+def runtime_probe_docker() -> None:
+    """Probe whether the optional local Docker runtime smoke can run on this host."""
+    probe = probe_docker_environment()
+    _emit_json(
+        {
+            "cli_present": probe.cli_present,
+            "daemon_reachable": probe.daemon_reachable,
+            "detail": probe.detail,
+            "ready": probe.ready,
+        }
+    )
+    if not probe.ready:
+        raise typer.Exit(code=1)
 
 
 @profiles_app.command("list")

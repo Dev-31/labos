@@ -64,7 +64,9 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "docker" in release_checklist.lower()
     assert "documentation" in release_checklist.lower()
     assert "uv run pytest -q tests/integration/test_docker_runtime_smoke.py" in release_checklist
+    assert "labos runtime probe-docker" in release_checklist
     assert "docker integration smoke" in readme.lower()
+    assert "labos runtime probe-docker" in readme
 
     assert "# Changelog" in changelog
     assert "## v0.1.0 (unreleased)" in changelog
