@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -14,7 +13,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from labos import __version__
 from labos.config.profiles.base import DEFAULT_PROFILES
 from labos.config.settings import Settings, load_settings
-from labos.core.enums import ApprovalState, ExportState, LabState
+from labos.core.enums import ActorType, ApprovalState, ExportState, LabState
+from labos.core.events import EventRecord, EventWriter
 from labos.core.models import (
     ApprovalDecisionRequest,
     ApprovalResponse,
@@ -253,14 +253,21 @@ def _record_event(
     payload: dict[str, object],
     lab_id: str | None = None,
     run_id: str | None = None,
+    actor_type: str = "system",
+    actor_id: str | None = None,
+    resource_type: str | None = None,
+    resource_id: str | None = None,
 ) -> None:
-    session.add(
-        EventRow(
-            id=str(uuid4()),
+    EventWriter(session).write(
+        EventRecord(
+            event_type=event_type,
+            payload=payload,
             lab_id=lab_id,
             run_id=run_id,
-            event_type=event_type,
-            payload_json=json.dumps(payload, sort_keys=True),
+            actor_type=actor_type,
+            actor_id=actor_id,
+            resource_type=resource_type,
+            resource_id=resource_id,
         )
     )
 
@@ -271,6 +278,10 @@ def _event_response_from_row(row: EventRow) -> EventResponse:
         lab_id=row.lab_id,
         run_id=row.run_id,
         event_type=row.event_type,
+        actor_type=ActorType(row.actor_type),
+        actor_id=row.actor_id,
+        resource_type=row.resource_type,
+        resource_id=row.resource_id,
         payload_json=row.payload_json,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -402,6 +413,10 @@ def create_app(
                     session,
                     event_type="approval.requested",
                     lab_id=lab_id,
+                    actor_type="system",
+                    actor_id="policy-engine",
+                    resource_type="approval",
+                    resource_id=approval.id,
                     payload={
                         "approval_id": approval.id,
                         "resource_type": approval.resource_type,
@@ -409,6 +424,19 @@ def create_app(
                         "action": approval.action,
                     },
                 )
+            _record_event(
+                session,
+                event_type="lab.requested",
+                lab_id=lab_id,
+                actor_type=request.requester_type.value,
+                resource_type="lab",
+                resource_id=lab_id,
+                payload={
+                    "profile_name": decision.profile_name,
+                    "runtime_class": decision.runtime_class.value,
+                    "state": lab_state,
+                },
+            )
             session.commit()
             session.refresh(row)
             session.refresh(storage_row)
@@ -452,6 +480,16 @@ def create_app(
                 command=request.command,
             )
             session.add(row)
+            _record_event(
+                session,
+                event_type="run.queued",
+                lab_id=request.lab_id,
+                run_id=row.id,
+                actor_type=request.requester_type.value,
+                resource_type="run",
+                resource_id=row.id,
+                payload={"command": row.command, "state": row.state},
+            )
             session.commit()
             session.refresh(row)
             return _run_response_from_row(row)
@@ -496,6 +534,10 @@ def create_app(
                 session,
                 event_type="approval.approved",
                 lab_id=row.lab_id,
+                actor_type="human",
+                actor_id=request.actor,
+                resource_type="approval",
+                resource_id=row.id,
                 payload={
                     "approval_id": row.id,
                     "resource_type": row.resource_type,
@@ -527,6 +569,10 @@ def create_app(
                 session,
                 event_type="approval.denied",
                 lab_id=row.lab_id,
+                actor_type="human",
+                actor_id=request.actor,
+                resource_type="approval",
+                resource_id=row.id,
                 payload={
                     "approval_id": row.id,
                     "resource_type": row.resource_type,
@@ -586,6 +632,20 @@ def create_app(
 
             row = SnapshotRow(id=snapshot_id, lab_id=lab.id, backend_ref=metadata.backend_ref)
             session.add(row)
+            _record_event(
+                session,
+                event_type="snapshot.created",
+                lab_id=lab.id,
+                run_id=request.run_id,
+                actor_type=request.requester_type.value,
+                resource_type="snapshot",
+                resource_id=snapshot_id,
+                payload={
+                    "backend_ref": metadata.backend_ref,
+                    "runtime_class": metadata.runtime_class,
+                    "state": metadata.state,
+                },
+            )
             session.commit()
             session.refresh(row)
             return _snapshot_response_from_row(row, metadata)
@@ -617,6 +677,21 @@ def create_app(
             except SnapshotMetadataError as exc:
                 raise ConflictError(str(exc), resource="snapshot") from exc
 
+            _record_event(
+                session,
+                event_type="snapshot.restored",
+                lab_id=target_lab.id,
+                run_id=metadata.run_id,
+                actor_type=request.requester_type.value,
+                resource_type="snapshot",
+                resource_id=snapshot.id,
+                payload={
+                    "source_lab_id": snapshot.lab_id,
+                    "restored_lab_id": target_lab.id,
+                    "state": metadata.state,
+                },
+            )
+            session.commit()
             return _snapshot_response_from_row(snapshot, metadata)
 
     @app.post("/exports", response_model=ExportResponse, status_code=status.HTTP_201_CREATED)
@@ -644,6 +719,9 @@ def create_app(
                 event_type="export.requested",
                 lab_id=lab.id,
                 run_id=request.run_id,
+                actor_type=request.requester_type.value,
+                resource_type="export",
+                resource_id=export_id,
                 payload={
                     "export_id": export_id,
                     "source_path": request.source_path,
@@ -681,6 +759,10 @@ def create_app(
                 event_type="export.staged",
                 lab_id=lab.id,
                 run_id=request.run_id,
+                actor_type="system",
+                actor_id="export-gate",
+                resource_type="export",
+                resource_id=export_id,
                 payload={
                     "export_id": export_id,
                     "source_path": row.source_path,
@@ -705,6 +787,10 @@ def create_app(
                     event_type="approval.requested",
                     lab_id=lab.id,
                     run_id=request.run_id,
+                    actor_type="system",
+                    actor_id="policy-engine",
+                    resource_type="approval",
+                    resource_id=approval.id,
                     payload={
                         "approval_id": approval.id,
                         "resource_type": approval.resource_type,
@@ -738,6 +824,10 @@ def create_app(
                     event_type="export.release_blocked",
                     lab_id=row.lab_id,
                     run_id=row.run_id,
+                    actor_type="system",
+                    actor_id="export-gate",
+                    resource_type="export",
+                    resource_id=row.id,
                     payload={
                         "export_id": row.id,
                         "reason": str(exc),
@@ -756,6 +846,10 @@ def create_app(
                 event_type="export.released",
                 lab_id=row.lab_id,
                 run_id=row.run_id,
+                actor_type="system",
+                actor_id="export-gate",
+                resource_type="export",
+                resource_id=row.id,
                 payload={
                     "export_id": row.id,
                     "released_path": row.released_path,
@@ -785,6 +879,9 @@ def create_app(
                 event_type="export.denied",
                 lab_id=row.lab_id,
                 run_id=row.run_id,
+                actor_type="human",
+                resource_type="export",
+                resource_id=row.id,
                 payload={
                     "export_id": row.id,
                     "reason": row.denial_reason,
@@ -803,11 +900,29 @@ def create_app(
             return [_export_response_from_row(row) for row in rows]
 
     @app.get("/events", response_model=list[EventResponse])
-    def list_events() -> list[EventResponse]:
+    def list_events(
+        event_type: str | None = None,
+        actor_type: str | None = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
+        lab_id: str | None = None,
+        run_id: str | None = None,
+    ) -> list[EventResponse]:
         with db_session_factory() as session:
-            rows = session.scalars(
-                select(EventRow).order_by(EventRow.created_at, EventRow.id)
-            ).all()
+            query = select(EventRow)
+            if event_type is not None:
+                query = query.where(EventRow.event_type == event_type)
+            if actor_type is not None:
+                query = query.where(EventRow.actor_type == actor_type)
+            if resource_type is not None:
+                query = query.where(EventRow.resource_type == resource_type)
+            if resource_id is not None:
+                query = query.where(EventRow.resource_id == resource_id)
+            if lab_id is not None:
+                query = query.where(EventRow.lab_id == lab_id)
+            if run_id is not None:
+                query = query.where(EventRow.run_id == run_id)
+            rows = session.scalars(query.order_by(EventRow.created_at, EventRow.id)).all()
             return [_event_response_from_row(row) for row in rows]
 
     return app

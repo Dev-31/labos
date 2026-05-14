@@ -565,15 +565,15 @@ Important actions can be reconstructed after the fact.
 - policy denied
 
 ### Steps
-- [ ] Define event schema.
-- [ ] Define actor model: human, agent, scheduler, system.
-- [ ] Define resource reference shape.
-- [ ] Implement event writer service.
-- [ ] Ensure major workflows emit events.
-- [ ] Add event query filters.
-- [ ] Add API list endpoint with filters.
-- [ ] Add tests for event generation.
-- [ ] Commit audit layer.
+- [x] Define event schema.
+- [x] Define actor model: human, agent, scheduler, system.
+- [x] Define resource reference shape.
+- [x] Implement event writer service.
+- [x] Ensure major workflows emit events.
+- [x] Add event query filters.
+- [x] Add API list endpoint with filters.
+- [x] Add tests for event generation.
+- [x] Commit audit layer.
 
 ---
 

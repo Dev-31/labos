@@ -214,6 +214,21 @@ Lists recorded export metadata rows, including quarantine/release state.
 ### `GET /events`
 Lists recorded audit/event metadata rows.
 
+Current event rows include:
+- `event_type`
+- `actor_type` (`human`, `agent`, `scheduler`, `system`)
+- `actor_id` when the caller identity is known
+- `resource_type` / `resource_id` for the governed object involved
+- `lab_id` / `run_id` when the event is tied to a specific lab or run
+
+Supported query filters:
+- `event_type`
+- `actor_type`
+- `resource_type`
+- `resource_id`
+- `lab_id`
+- `run_id`
+
 ## Error shape
 
 Request validation errors return a stable machine-readable structure:
@@ -238,5 +253,4 @@ These endpoints currently provide real control-plane behavior for:
 They do not yet promise:
 - runtime execution inside Docker or a microVM
 - microVM-grade snapshot/memory semantics
-- approval decision mutation workflows for high-risk exports
 - event streaming subscriptions

@@ -74,7 +74,7 @@ def test_create_export_stages_artifact_and_records_provenance(tmp_path: Path) ->
     assert payload["released_path"] is None
     assert payload["denial_reason"] is None
 
-    events_response = client.get("/events")
+    events_response = client.get("/events", params={"resource_type": "export"})
     assert events_response.status_code == 200
     event_types = [event["event_type"] for event in events_response.json()]
     assert event_types == ["export.requested", "export.staged"]
@@ -107,7 +107,7 @@ def test_release_export_copies_artifact_to_approved_area(tmp_path: Path) -> None
     assert released_path.exists() is True
     assert released_path.read_text() == "ready for release"
 
-    events_response = client.get("/events")
+    events_response = client.get("/events", params={"resource_type": "export"})
     assert events_response.status_code == 200
     event_types = [event["event_type"] for event in events_response.json()]
     assert event_types == ["export.requested", "export.staged", "export.released"]
@@ -239,7 +239,7 @@ def test_deny_export_marks_request_rejected(tmp_path: Path) -> None:
     assert denied["denial_reason"] == "manual review rejected artifact"
     assert denied["released_path"] is None
 
-    events_response = client.get("/events")
+    events_response = client.get("/events", params={"resource_type": "export"})
     assert events_response.status_code == 200
     event_types = [event["event_type"] for event in events_response.json()]
     assert event_types == ["export.requested", "export.staged", "export.denied"]

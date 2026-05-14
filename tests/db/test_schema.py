@@ -48,3 +48,19 @@ def test_approvals_table_contains_workflow_columns() -> None:
         "expires_at",
         "decided_at",
     }.issubset(columns)
+
+
+def test_events_table_contains_actor_and_resource_columns() -> None:
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("events")}
+
+    assert {
+        "event_type",
+        "actor_type",
+        "actor_id",
+        "resource_type",
+        "resource_id",
+        "payload_json",
+    }.issubset(columns)

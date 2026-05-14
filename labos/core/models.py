@@ -4,6 +4,9 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from labos.core.enums import ActorType
+from labos.core.policy_models import RequesterType
+
 
 class HealthResponse(BaseModel):
     status: str = "ok"
@@ -11,7 +14,7 @@ class HealthResponse(BaseModel):
 
 class LabCreateRequest(BaseModel):
     profile_name: str
-    requester_type: str
+    requester_type: RequesterType
 
 
 class LabStorageResponse(BaseModel):
@@ -37,6 +40,7 @@ class LabResponse(BaseModel):
 class RunCreateRequest(BaseModel):
     lab_id: str
     command: str
+    requester_type: RequesterType = RequesterType.HUMAN
 
 
 class RunResponse(BaseModel):
@@ -74,10 +78,12 @@ class ApprovalResponse(BaseModel):
 class SnapshotCreateRequest(BaseModel):
     lab_id: str
     run_id: str | None = None
+    requester_type: RequesterType = RequesterType.HUMAN
 
 
 class SnapshotRestoreRequest(BaseModel):
     lab_id: str
+    requester_type: RequesterType = RequesterType.HUMAN
 
 
 class SnapshotResponse(BaseModel):
@@ -101,6 +107,7 @@ class ExportCreateRequest(BaseModel):
     lab_id: str
     source_path: str
     run_id: str | None = None
+    requester_type: RequesterType = RequesterType.HUMAN
 
 
 class ExportDenyRequest(BaseModel):
@@ -128,6 +135,10 @@ class EventResponse(BaseModel):
     lab_id: str | None
     run_id: str | None
     event_type: str
+    actor_type: ActorType
+    actor_id: str | None = None
+    resource_type: str | None = None
+    resource_id: str | None = None
     payload_json: str
     created_at: datetime
     updated_at: datetime

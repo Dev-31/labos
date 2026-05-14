@@ -108,10 +108,19 @@ class EventRow(TimestampedRow, Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     lab_id: Mapped[str | None] = mapped_column(
-        ForeignKey("labs.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("labs.id", ondelete="SET NULL"), nullable=True, index=True
     )
     run_id: Mapped[str | None] = mapped_column(
-        ForeignKey("runs.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("runs.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    event_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    actor_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="system",
+        index=True,
+    )
+    actor_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    resource_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    resource_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)

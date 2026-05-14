@@ -46,6 +46,13 @@ class SnapshotState(StrEnum):
     RESTORED = "restored"
 
 
+class ActorType(StrEnum):
+    HUMAN = "human"
+    AGENT = "agent"
+    SCHEDULER = "scheduler"
+    SYSTEM = "system"
+
+
 class AuditLevel(StrEnum):
     BASIC = "basic"
     DETAILED = "detailed"
