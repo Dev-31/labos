@@ -509,7 +509,7 @@ Exports are staged, hashed, reviewed by policy, and only then released.
 - [x] Add release endpoint/service.
 - [x] Add denial endpoint/service.
 - [x] Add event logging for every export stage.
-- [ ] Commit export gate.
+- [x] Commit export gate.
 
 ---
 
