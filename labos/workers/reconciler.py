@@ -10,17 +10,25 @@ from sqlalchemy.orm import Session
 
 from labos.core.enums import ActorType, ApprovalState, ExportState, LabState, RunState
 from labos.core.events import EventRecord, EventWriter
+from labos.core.policy_models import PersistenceMode
 from labos.db.schema import ApprovalRow, ExportRow, LabRow, LabStorageRow, RunRow, SecretLeaseRow
 from labos.runtimes.base import LabInspection
+from labos.storage.models import StorageAllocation
 
 
 class RuntimeInventory(Protocol):
     def list_managed_labs(self) -> list[LabInspection]: ...
 
 
+class StorageDestroyer(Protocol):
+    def destroy(self, allocation: StorageAllocation) -> None: ...
+
+
 @dataclass(frozen=True)
 class ReconciliationReport:
     failed_lab_ids: list[str] = field(default_factory=list)
+    destroyed_lab_ids: list[str] = field(default_factory=list)
+    failed_destroy_lab_ids: list[str] = field(default_factory=list)
     orphaned_runtime_lab_ids: list[str] = field(default_factory=list)
     zombie_lab_ids: list[str] = field(default_factory=list)
     expired_approval_ids: list[str] = field(default_factory=list)
@@ -31,8 +39,16 @@ class ReconciliationReport:
 class ReconciliationService:
     """Detect inconsistent LabOS state before it turns into silent drift."""
 
-    def __init__(self, *, runtime_inventory: RuntimeInventory | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        runtime_inventory: RuntimeInventory | None = None,
+        storage_destroyer: StorageDestroyer | None = None,
+        max_destroy_attempts: int = 3,
+    ) -> None:
         self._runtime_inventory = runtime_inventory
+        self._storage_destroyer = storage_destroyer
+        self._max_destroy_attempts = max_destroy_attempts
 
     def reconcile(self, session: Session, *, now: datetime | None = None) -> ReconciliationReport:
         report = ReconciliationReport()
@@ -62,6 +78,12 @@ class ReconciliationService:
             event_writer=event_writer,
             report=report,
             now=current_time,
+        )
+        self._retry_destroying_labs(
+            session,
+            storage_by_lab_id=storage_by_lab_id,
+            event_writer=event_writer,
+            report=report,
         )
 
         for lab in labs:
@@ -139,6 +161,101 @@ class ReconciliationService:
 
         self._sort_report(report)
         return report
+
+    def _retry_destroying_labs(
+        self,
+        session: Session,
+        *,
+        storage_by_lab_id: dict[str, LabStorageRow],
+        event_writer: EventWriter,
+        report: ReconciliationReport,
+    ) -> None:
+        if self._storage_destroyer is None:
+            return
+
+        destroying_labs = session.scalars(
+            select(LabRow)
+            .where(LabRow.state == LabState.DESTROYING.value)
+            .order_by(LabRow.created_at, LabRow.id)
+        ).all()
+        for lab in destroying_labs:
+            storage_row = storage_by_lab_id.get(lab.id)
+            if storage_row is None:
+                lab.state = LabState.FAILED.value
+                lab.last_destroy_error = "missing_storage_record"
+                report.failed_destroy_lab_ids.append(lab.id)
+                event_writer.write(
+                    EventRecord(
+                        event_type="lab.destroy_failed",
+                        lab_id=lab.id,
+                        actor_type=ActorType.SYSTEM.value,
+                        actor_id="reconciler",
+                        resource_type="lab",
+                        resource_id=lab.id,
+                        payload={
+                            "attempt": lab.destroy_attempts,
+                            "max_attempts": self._max_destroy_attempts,
+                            "reason": lab.last_destroy_error,
+                        },
+                    )
+                )
+                continue
+
+            lab.destroy_attempts += 1
+            try:
+                allocation = self._storage_allocation_from_row(storage_row, lab.id)
+                self._storage_destroyer.destroy(allocation)
+            except Exception as exc:
+                lab.last_destroy_error = str(exc)
+                event_writer.write(
+                    EventRecord(
+                        event_type="lab.destroy_retry_failed",
+                        lab_id=lab.id,
+                        actor_type=ActorType.SYSTEM.value,
+                        actor_id="reconciler",
+                        resource_type="lab",
+                        resource_id=lab.id,
+                        payload={
+                            "attempt": lab.destroy_attempts,
+                            "max_attempts": self._max_destroy_attempts,
+                            "reason": lab.last_destroy_error,
+                        },
+                    )
+                )
+                if lab.destroy_attempts >= self._max_destroy_attempts:
+                    lab.state = LabState.FAILED.value
+                    report.failed_destroy_lab_ids.append(lab.id)
+                    event_writer.write(
+                        EventRecord(
+                            event_type="lab.destroy_failed",
+                            lab_id=lab.id,
+                            actor_type=ActorType.SYSTEM.value,
+                            actor_id="reconciler",
+                            resource_type="lab",
+                            resource_id=lab.id,
+                            payload={
+                                "attempt": lab.destroy_attempts,
+                                "max_attempts": self._max_destroy_attempts,
+                                "reason": lab.last_destroy_error,
+                            },
+                        )
+                    )
+                continue
+
+            lab.state = LabState.DESTROYED.value
+            lab.last_destroy_error = None
+            report.destroyed_lab_ids.append(lab.id)
+            event_writer.write(
+                EventRecord(
+                    event_type="lab.destroyed",
+                    lab_id=lab.id,
+                    actor_type=ActorType.SYSTEM.value,
+                    actor_id="reconciler",
+                    resource_type="lab",
+                    resource_id=lab.id,
+                    payload={"attempt": lab.destroy_attempts, "state": lab.state},
+                )
+            )
 
     def _expire_stale_approvals(
         self,
@@ -271,11 +388,27 @@ class ReconciliationService:
     @staticmethod
     def _sort_report(report: ReconciliationReport) -> None:
         report.failed_lab_ids.sort()
+        report.destroyed_lab_ids.sort()
+        report.failed_destroy_lab_ids.sort()
         report.orphaned_runtime_lab_ids.sort()
         report.zombie_lab_ids.sort()
         report.expired_approval_ids.sort()
         report.revoked_secret_lease_ids.sort()
         report.timed_out_run_ids.sort()
+
+    @staticmethod
+    def _storage_allocation_from_row(row: LabStorageRow, lab_id: str) -> StorageAllocation:
+        return StorageAllocation(
+            lab_id=lab_id,
+            root_path=Path(row.root_path),
+            workspace_path=Path(row.workspace_path),
+            exports_path=Path(row.exports_path),
+            quarantine_path=Path(row.quarantine_path),
+            snapshots_path=Path(row.snapshots_path),
+            persistence_mode=PersistenceMode(row.persistence_mode),
+            retention_days=0,
+            workspace_mount_target=row.workspace_mount_target,
+        )
 
     @staticmethod
     def _is_zombie_lab(lab_state: str, runtime_status: str) -> bool:

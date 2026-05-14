@@ -28,6 +28,8 @@ class LabRow(TimestampedRow, Base):
     profile_name: Mapped[str] = mapped_column(String(128), nullable=False)
     state: Mapped[str] = mapped_column(String(32), nullable=False)
     runtime_class: Mapped[str] = mapped_column(String(32), nullable=False)
+    destroy_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_destroy_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class LabStorageRow(TimestampedRow, Base):

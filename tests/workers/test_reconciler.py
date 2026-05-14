@@ -19,6 +19,7 @@ from labos.db.schema import (
 )
 from labos.db.session import build_engine, build_session_factory
 from labos.runtimes.base import LabInspection
+from labos.storage.models import StorageAllocation
 from labos.workers.reconciler import ReconciliationService
 
 
@@ -28,6 +29,30 @@ class FakeRuntimeInventory:
 
     def list_managed_labs(self) -> list[LabInspection]:
         return list(self.inspections)
+
+
+@dataclass
+class FakeStorageDestroyer:
+    failures_remaining: int = 0
+    destroyed_lab_ids: list[str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.destroyed_lab_ids is None:
+            self.destroyed_lab_ids = []
+
+    def destroy(self, allocation: StorageAllocation) -> None:
+        if self.failures_remaining > 0:
+            self.failures_remaining -= 1
+            raise RuntimeError("storage backend busy")
+        assert self.destroyed_lab_ids is not None
+        self.destroyed_lab_ids.append(allocation.lab_id)
+        if allocation.root_path.exists():
+            for child in sorted(allocation.root_path.rglob("*"), reverse=True):
+                if child.is_file():
+                    child.unlink()
+                else:
+                    child.rmdir()
+            allocation.root_path.rmdir()
 
 
 def build_session(tmp_path: Path) -> Session:
@@ -174,6 +199,129 @@ def test_reconciler_detects_zombie_runtime_for_destroyed_lab(tmp_path: Path) -> 
         .order_by(EventRow.created_at, EventRow.id)
     ).all()
     assert [event.event_type for event in zombie_events] == ["runtime_lab.zombie_detected"]
+
+
+def test_reconciler_retries_destroying_lab_and_marks_it_destroyed(tmp_path: Path) -> None:
+    session = build_session(tmp_path)
+    lab_root = tmp_path / "managed" / "labs" / "lab-destroy-retry"
+    workspace_path = lab_root / "workspace"
+    workspace_path.mkdir(parents=True)
+    (workspace_path / "notes.txt").write_text("cleanup me")
+    session.add(
+        LabRow(
+            id="lab-destroy-retry",
+            profile_name="safe-dev",
+            state=LabState.DESTROYING.value,
+            runtime_class="container",
+            destroy_attempts=0,
+        )
+    )
+    session.add(
+        LabStorageRow(
+            id="storage-destroy-retry",
+            lab_id="lab-destroy-retry",
+            persistence_mode="ephemeral",
+            root_path=str(lab_root),
+            workspace_path=str(workspace_path),
+            exports_path=str(lab_root / "exports"),
+            quarantine_path=str(lab_root / "quarantine"),
+            snapshots_path=str(lab_root / "snapshots"),
+            workspace_mount_target="/lab/workspace",
+        )
+    )
+    session.commit()
+
+    destroyer = FakeStorageDestroyer()
+    report = ReconciliationService(
+        runtime_inventory=FakeRuntimeInventory(inspections=[]),
+        storage_destroyer=destroyer,
+    ).reconcile(session)
+    session.commit()
+
+    lab = session.get(LabRow, "lab-destroy-retry")
+    assert lab is not None
+    assert lab.state == LabState.DESTROYED.value
+    assert lab.destroy_attempts == 1
+    assert lab.last_destroy_error is None
+    assert report.destroyed_lab_ids == ["lab-destroy-retry"]
+    assert destroyer.destroyed_lab_ids == ["lab-destroy-retry"]
+    assert lab_root.exists() is False
+
+    events = session.scalars(
+        select(EventRow)
+        .where(EventRow.resource_id == "lab-destroy-retry")
+        .order_by(EventRow.created_at, EventRow.id)
+    ).all()
+    assert [event.event_type for event in events] == ["lab.destroyed"]
+
+
+def test_reconciler_marks_destroying_lab_failed_after_retry_budget_exhausted(
+    tmp_path: Path,
+) -> None:
+    session = build_session(tmp_path)
+    lab_root = tmp_path / "managed" / "labs" / "lab-destroy-fails"
+    lab_root.mkdir(parents=True)
+    session.add(
+        LabRow(
+            id="lab-destroy-fails",
+            profile_name="safe-dev",
+            state=LabState.DESTROYING.value,
+            runtime_class="container",
+            destroy_attempts=0,
+        )
+    )
+    session.add(
+        LabStorageRow(
+            id="storage-destroy-fails",
+            lab_id="lab-destroy-fails",
+            persistence_mode="ephemeral",
+            root_path=str(lab_root),
+            workspace_path=str(lab_root / "workspace"),
+            exports_path=str(lab_root / "exports"),
+            quarantine_path=str(lab_root / "quarantine"),
+            snapshots_path=str(lab_root / "snapshots"),
+            workspace_mount_target="/lab/workspace",
+        )
+    )
+    session.commit()
+
+    destroyer = FakeStorageDestroyer(failures_remaining=2)
+    reconciler = ReconciliationService(
+        runtime_inventory=FakeRuntimeInventory(inspections=[]),
+        storage_destroyer=destroyer,
+        max_destroy_attempts=2,
+    )
+
+    first_report = reconciler.reconcile(session)
+    session.commit()
+
+    first_lab = session.get(LabRow, "lab-destroy-fails")
+    assert first_lab is not None
+    assert first_lab.state == LabState.DESTROYING.value
+    assert first_lab.destroy_attempts == 1
+    assert first_lab.last_destroy_error == "storage backend busy"
+    assert first_report.failed_destroy_lab_ids == []
+
+    second_report = reconciler.reconcile(session)
+    session.commit()
+
+    second_lab = session.get(LabRow, "lab-destroy-fails")
+    assert second_lab is not None
+    assert second_lab.state == LabState.FAILED.value
+    assert second_lab.destroy_attempts == 2
+    assert second_lab.last_destroy_error == "storage backend busy"
+    assert second_report.failed_destroy_lab_ids == ["lab-destroy-fails"]
+
+    events = session.scalars(
+        select(EventRow)
+        .where(EventRow.resource_id == "lab-destroy-fails")
+        .order_by(EventRow.created_at, EventRow.id)
+    ).all()
+    assert [event.event_type for event in events] == [
+        "lab.destroy_retry_failed",
+        "lab.destroy_retry_failed",
+        "lab.destroy_failed",
+    ]
 
 
 

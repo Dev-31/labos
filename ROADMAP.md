@@ -689,8 +689,8 @@ LabOS can detect and clean broken runtime state.
 - [x] Implement stale secret lease cleanup.
 - [x] Implement timed-out run handling.
 - [x] Implement zombie lab detection.
-- [ ] Implement destroy retry logic.
-- [ ] Add failure events.
+- [x] Implement destroy retry logic.
+- [x] Add failure events.
 - [ ] Commit resilience layer.
 
 ---

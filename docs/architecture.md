@@ -71,8 +71,9 @@ These states are explicit so policy, storage, runtime, and API layers can share 
 ## Reliability and reconciliation
 - The Phase 1 worker layer now includes a reconciliation service that scans durable metadata for half-created labs before they silently drift.
 - Labs missing a storage record or managed storage root are marked `failed` and recorded with `lab.reconciliation_failed` audit events.
+- Labs stuck in `destroying` can be retried against the managed storage layer; successful retries record `lab.destroyed`, while repeated failures emit `lab.destroy_retry_failed` and eventually `lab.destroy_failed` instead of silently looping forever.
 - Runtime inventory can be queried for LabOS-managed containers so orphaned runtime artifacts are detected and surfaced as `runtime_lab.orphan_detected` events.
-- This is detection and state repair only; LabOS still does not pretend to offer full self-healing runtime orchestration.
+- This is still managed-filesystem cleanup and metadata recovery only; LabOS does not claim full runtime self-healing or container/microVM teardown guarantees yet.
 
 ## Product boundaries
 - public core platform only
