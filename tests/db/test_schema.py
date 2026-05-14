@@ -105,3 +105,18 @@ def test_scheduler_jobs_table_contains_queue_tracking_columns() -> None:
         "dispatched_at",
         "completed_at",
     }.issubset(columns)
+
+
+def test_runs_table_contains_timeout_tracking_columns() -> None:
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("runs")}
+
+    assert {
+        "lab_id",
+        "state",
+        "command",
+        "timeout_at",
+        "finished_at",
+    }.issubset(columns)

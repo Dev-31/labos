@@ -125,6 +125,8 @@ Example response:
   "lab_id": "<lab-id>",
   "state": "queued",
   "command": "python -m pytest",
+  "timeout_at": "2026-05-14T01:00:00Z",
+  "finished_at": null,
   "created_at": "2026-05-14T00:00:00Z",
   "updated_at": "2026-05-14T00:00:00Z"
 }
@@ -132,6 +134,7 @@ Example response:
 
 Current API behavior is honest:
 - this records governed run intent in metadata
+- LabOS assigns a control-plane timeout deadline (`timeout_at`) so reconciliation can mark stale queued/starting/running runs as `timed_out`
 - it does **not** execute inside Docker or a microVM yet
 - the runtime adapter work remains a later roadmap phase
 

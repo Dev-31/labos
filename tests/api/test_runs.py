@@ -38,6 +38,8 @@ def test_create_list_and_get_runs(tmp_path: Path) -> None:
     assert created["lab_id"] == lab_id
     assert created["state"] == "queued"
     assert created["command"] == "python -m pytest"
+    assert created["timeout_at"] is not None
+    assert created["finished_at"] is None
 
     list_response = client.get("/runs")
 

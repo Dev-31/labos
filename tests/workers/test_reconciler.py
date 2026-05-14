@@ -7,8 +7,16 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from labos.core.enums import ApprovalState, LabState
-from labos.db.schema import ApprovalRow, Base, EventRow, LabRow, LabStorageRow, SecretLeaseRow
+from labos.core.enums import ApprovalState, LabState, RunState
+from labos.db.schema import (
+    ApprovalRow,
+    Base,
+    EventRow,
+    LabRow,
+    LabStorageRow,
+    RunRow,
+    SecretLeaseRow,
+)
 from labos.db.session import build_engine, build_session_factory
 from labos.runtimes.base import LabInspection
 from labos.workers.reconciler import ReconciliationService
@@ -237,3 +245,59 @@ def test_reconciler_revokes_expired_secret_leases(tmp_path: Path) -> None:
         .order_by(EventRow.created_at, EventRow.id)
     ).all()
     assert [event.event_type for event in events] == ["secret_lease.expired"]
+
+
+def test_reconciler_times_out_overdue_runs_and_records_event(tmp_path: Path) -> None:
+    session = build_session(tmp_path)
+    now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+    lab_root = tmp_path / "managed" / "labs" / "lab-run-timeout"
+    lab_root.mkdir(parents=True)
+    session.add(
+        LabRow(
+            id="lab-run-timeout",
+            profile_name="safe-dev",
+            state=LabState.RUNNING.value,
+            runtime_class="container",
+        )
+    )
+    session.add(
+        LabStorageRow(
+            id="storage-run-timeout",
+            lab_id="lab-run-timeout",
+            persistence_mode="ephemeral",
+            root_path=str(lab_root),
+            workspace_path=str(lab_root / "workspace"),
+            exports_path=str(lab_root / "exports"),
+            quarantine_path=str(lab_root / "quarantine"),
+            snapshots_path=str(lab_root / "snapshots"),
+            workspace_mount_target="/lab/workspace",
+        )
+    )
+    session.add(
+        RunRow(
+            id="run-expired",
+            lab_id="lab-run-timeout",
+            state=RunState.RUNNING.value,
+            command="python -m pytest",
+            timeout_at=now - timedelta(minutes=1),
+        )
+    )
+    session.commit()
+
+    reconciler = ReconciliationService(runtime_inventory=FakeRuntimeInventory(inspections=[]))
+    report = reconciler.reconcile(session, now=now)
+    session.commit()
+
+    run = session.get(RunRow, "run-expired")
+    assert run is not None
+    assert run.state == RunState.TIMED_OUT.value
+    assert run.finished_at is not None
+    assert run.finished_at.replace(tzinfo=UTC) == now
+
+    assert report.timed_out_run_ids == ["run-expired"]
+    events = session.scalars(
+        select(EventRow)
+        .where(EventRow.resource_id == "run-expired")
+        .order_by(EventRow.created_at, EventRow.id)
+    ).all()
+    assert [event.event_type for event in events] == ["run.timed_out"]

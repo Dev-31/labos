@@ -70,6 +70,8 @@ class RunResponse(BaseModel):
     lab_id: str
     state: str
     command: str
+    timeout_at: datetime | None = None
+    finished_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

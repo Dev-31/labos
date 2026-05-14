@@ -53,6 +53,8 @@ class RunRow(TimestampedRow, Base):
     lab_id: Mapped[str] = mapped_column(ForeignKey("labs.id", ondelete="CASCADE"), nullable=False)
     state: Mapped[str] = mapped_column(String(32), nullable=False)
     command: Mapped[str] = mapped_column(Text, nullable=False)
+    timeout_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ApprovalRow(TimestampedRow, Base):

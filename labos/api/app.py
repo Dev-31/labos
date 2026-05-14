@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,6 +18,7 @@ from labos.core.enums import (
     ApprovalState,
     ExportState,
     LabState,
+    RunState,
     SchedulerAction,
     SchedulerJobState,
 )
@@ -136,6 +137,8 @@ def _run_response_from_row(row: RunRow) -> RunResponse:
         lab_id=row.lab_id,
         state=row.state,
         command=row.command,
+        timeout_at=row.timeout_at,
+        finished_at=row.finished_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -508,11 +511,13 @@ def create_app(
         if lab is None:
             raise ResourceNotFoundError("lab")
 
+        now = datetime.now(UTC)
         row = RunRow(
             id=str(uuid4()),
             lab_id=request.lab_id,
-            state="queued",
+            state=RunState.QUEUED.value,
             command=request.command,
+            timeout_at=now + timedelta(minutes=app_settings.default_run_timeout_minutes),
         )
         session.add(row)
         _record_event(

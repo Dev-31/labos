@@ -8,9 +8,9 @@ from typing import Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from labos.core.enums import ActorType, ApprovalState, ExportState, LabState
+from labos.core.enums import ActorType, ApprovalState, ExportState, LabState, RunState
 from labos.core.events import EventRecord, EventWriter
-from labos.db.schema import ApprovalRow, ExportRow, LabRow, LabStorageRow, SecretLeaseRow
+from labos.db.schema import ApprovalRow, ExportRow, LabRow, LabStorageRow, RunRow, SecretLeaseRow
 from labos.runtimes.base import LabInspection
 
 
@@ -24,6 +24,7 @@ class ReconciliationReport:
     orphaned_runtime_lab_ids: list[str] = field(default_factory=list)
     expired_approval_ids: list[str] = field(default_factory=list)
     revoked_secret_lease_ids: list[str] = field(default_factory=list)
+    timed_out_run_ids: list[str] = field(default_factory=list)
 
 
 class ReconciliationService:
@@ -50,6 +51,12 @@ class ReconciliationService:
             now=current_time,
         )
         self._revoke_expired_secret_leases(
+            session,
+            event_writer=event_writer,
+            report=report,
+            now=current_time,
+        )
+        self._timeout_overdue_runs(
             session,
             event_writer=event_writer,
             report=report,
@@ -86,6 +93,7 @@ class ReconciliationService:
             )
 
         if self._runtime_inventory is None:
+            self._sort_report(report)
             return report
 
         for inspection in self._runtime_inventory.list_managed_labs():
@@ -107,10 +115,7 @@ class ReconciliationService:
                 )
             )
 
-        report.failed_lab_ids.sort()
-        report.orphaned_runtime_lab_ids.sort()
-        report.expired_approval_ids.sort()
-        report.revoked_secret_lease_ids.sort()
+        self._sort_report(report)
         return report
 
     def _expire_stale_approvals(
@@ -198,6 +203,56 @@ class ReconciliationService:
                     payload={"secret_name": lease.secret_name, "lease_id": lease.id},
                 )
             )
+
+    def _timeout_overdue_runs(
+        self,
+        session: Session,
+        *,
+        event_writer: EventWriter,
+        report: ReconciliationReport,
+        now: datetime,
+    ) -> None:
+        active_states = [RunState.QUEUED.value, RunState.STARTING.value, RunState.RUNNING.value]
+        runs = session.scalars(
+            select(RunRow)
+            .where(RunRow.state.in_(active_states))
+            .where(RunRow.timeout_at.is_not(None))
+            .order_by(RunRow.created_at, RunRow.id)
+        ).all()
+        for run in runs:
+            timeout_at = run.timeout_at
+            if timeout_at is None:
+                continue
+            timeout_at = self._normalize_datetime(timeout_at)
+            if timeout_at > now:
+                continue
+
+            run.state = RunState.TIMED_OUT.value
+            run.finished_at = now
+            report.timed_out_run_ids.append(run.id)
+            event_writer.write(
+                EventRecord(
+                    event_type="run.timed_out",
+                    lab_id=run.lab_id,
+                    run_id=run.id,
+                    actor_type=ActorType.SYSTEM.value,
+                    actor_id="reconciler",
+                    resource_type="run",
+                    resource_id=run.id,
+                    payload={
+                        "state": run.state,
+                        "timeout_at": timeout_at.isoformat(),
+                    },
+                )
+            )
+
+    @staticmethod
+    def _sort_report(report: ReconciliationReport) -> None:
+        report.failed_lab_ids.sort()
+        report.orphaned_runtime_lab_ids.sort()
+        report.expired_approval_ids.sort()
+        report.revoked_secret_lease_ids.sort()
+        report.timed_out_run_ids.sort()
 
     @staticmethod
     def _normalize_datetime(value: datetime) -> datetime:
