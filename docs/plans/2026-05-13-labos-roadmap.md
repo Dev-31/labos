@@ -624,23 +624,23 @@ An operator can create, inspect, run, snapshot, export, approve, and destroy fro
 - `labos events`
 
 ### Steps
-- [ ] Create root CLI app.
-- [ ] Add API client helper.
-- [ ] Add `profiles list`.
-- [ ] Add `labs create`.
-- [ ] Add `labs list`.
-- [ ] Add `labs get`.
+- [x] Create root CLI app.
+- [x] Add API client helper.
+- [x] Add `profiles list`.
+- [x] Add `labs create`.
+- [x] Add `labs list`.
+- [x] Add `labs get`.
 - [ ] Add `labs destroy`.
-- [ ] Add `runs start`.
-- [ ] Add `runs list`.
+- [x] Add `runs start`.
+- [x] Add `runs list`.
 - [ ] Add `snapshots create`.
 - [ ] Add `snapshots list`.
 - [ ] Add `exports request`.
-- [ ] Add `approvals list`.
-- [ ] Add `approvals approve`.
-- [ ] Add `approvals deny`.
-- [ ] Add `events list`.
-- [ ] Add CLI tests.
+- [x] Add `approvals list`.
+- [x] Add `approvals approve`.
+- [x] Add `approvals deny`.
+- [x] Add `events list`.
+- [x] Add CLI tests.
 - [ ] Commit CLI.
 
 ---

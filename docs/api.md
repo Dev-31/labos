@@ -2,6 +2,8 @@
 
 Phase 1 currently exposes the first stable control-plane surface for health, profile discovery, managed storage-backed lab metadata, snapshot capture/restore, and export quarantine workflows.
 
+The matching operator CLI surface is documented in `docs/cli.md`. Current CLI commands wrap these same public API endpoints; they do not bypass control-plane policy.
+
 ## Current endpoints
 
 ### `GET /health`
