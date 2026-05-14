@@ -23,6 +23,56 @@ class LabResponse(BaseModel):
     updated_at: datetime
 
 
+class RunCreateRequest(BaseModel):
+    lab_id: str
+    command: str
+
+
+class RunResponse(BaseModel):
+    id: str
+    lab_id: str
+    state: str
+    command: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ApprovalResponse(BaseModel):
+    id: str
+    lab_id: str | None
+    action: str
+    approved: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class SnapshotResponse(BaseModel):
+    id: str
+    lab_id: str
+    backend_ref: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ExportResponse(BaseModel):
+    id: str
+    lab_id: str
+    source_path: str
+    sha256: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class EventResponse(BaseModel):
+    id: str
+    lab_id: str | None
+    run_id: str | None
+    event_type: str
+    payload_json: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class ErrorResponse(BaseModel):
     detail: str
     resource: str | None = None

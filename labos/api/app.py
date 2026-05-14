@@ -12,15 +12,21 @@ from labos import __version__
 from labos.config.profiles.base import DEFAULT_PROFILES
 from labos.config.settings import Settings, load_settings
 from labos.core.models import (
+    ApprovalResponse,
     ErrorResponse,
+    EventResponse,
+    ExportResponse,
     HealthResponse,
     LabCreateRequest,
     LabResponse,
+    RunCreateRequest,
+    RunResponse,
+    SnapshotResponse,
     ValidationErrorItem,
     ValidationErrorResponse,
 )
 from labos.core.policy_engine import PolicyEngine
-from labos.db.schema import LabRow
+from labos.db.schema import ApprovalRow, EventRow, ExportRow, LabRow, RunRow, SnapshotRow
 from labos.db.session import build_session_factory
 
 
@@ -36,6 +42,61 @@ def _lab_response_from_row(row: LabRow) -> LabResponse:
         profile_name=row.profile_name,
         state=row.state,
         runtime_class=row.runtime_class,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _run_response_from_row(row: RunRow) -> RunResponse:
+    return RunResponse(
+        id=row.id,
+        lab_id=row.lab_id,
+        state=row.state,
+        command=row.command,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _approval_response_from_row(row: ApprovalRow) -> ApprovalResponse:
+    return ApprovalResponse(
+        id=row.id,
+        lab_id=row.lab_id,
+        action=row.action,
+        approved=row.approved,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _snapshot_response_from_row(row: SnapshotRow) -> SnapshotResponse:
+    return SnapshotResponse(
+        id=row.id,
+        lab_id=row.lab_id,
+        backend_ref=row.backend_ref,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _export_response_from_row(row: ExportRow) -> ExportResponse:
+    return ExportResponse(
+        id=row.id,
+        lab_id=row.lab_id,
+        source_path=row.source_path,
+        sha256=row.sha256,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _event_response_from_row(row: EventRow) -> EventResponse:
+    return EventResponse(
+        id=row.id,
+        lab_id=row.lab_id,
+        run_id=row.run_id,
+        event_type=row.event_type,
+        payload_json=row.payload_json,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -135,6 +196,70 @@ def create_app(
             if row is None:
                 raise ResourceNotFoundError("lab")
             return _lab_response_from_row(row)
+
+    @app.post("/runs", response_model=RunResponse, status_code=status.HTTP_201_CREATED)
+    def create_run(request: RunCreateRequest) -> RunResponse:
+        with db_session_factory() as session:
+            lab = session.get(LabRow, request.lab_id)
+            if lab is None:
+                raise ResourceNotFoundError("lab")
+
+            row = RunRow(
+                id=str(uuid4()),
+                lab_id=request.lab_id,
+                state="queued",
+                command=request.command,
+            )
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+            return _run_response_from_row(row)
+
+    @app.get("/runs", response_model=list[RunResponse])
+    def list_runs() -> list[RunResponse]:
+        with db_session_factory() as session:
+            rows = session.scalars(select(RunRow).order_by(RunRow.created_at, RunRow.id)).all()
+            return [_run_response_from_row(row) for row in rows]
+
+    @app.get("/runs/{run_id}", response_model=RunResponse)
+    def get_run(run_id: str) -> RunResponse:
+        with db_session_factory() as session:
+            row = session.get(RunRow, run_id)
+            if row is None:
+                raise ResourceNotFoundError("run")
+            return _run_response_from_row(row)
+
+    @app.get("/approvals", response_model=list[ApprovalResponse])
+    def list_approvals() -> list[ApprovalResponse]:
+        with db_session_factory() as session:
+            rows = session.scalars(
+                select(ApprovalRow).order_by(ApprovalRow.created_at, ApprovalRow.id)
+            ).all()
+            return [_approval_response_from_row(row) for row in rows]
+
+    @app.get("/snapshots", response_model=list[SnapshotResponse])
+    def list_snapshots() -> list[SnapshotResponse]:
+        with db_session_factory() as session:
+            rows = session.scalars(
+                select(SnapshotRow).order_by(SnapshotRow.created_at, SnapshotRow.id)
+            ).all()
+            return [_snapshot_response_from_row(row) for row in rows]
+
+    @app.get("/exports", response_model=list[ExportResponse])
+    def list_exports() -> list[ExportResponse]:
+        with db_session_factory() as session:
+            rows = session.scalars(
+                select(ExportRow).order_by(ExportRow.created_at, ExportRow.id)
+            ).all()
+            return [_export_response_from_row(row) for row in rows]
+
+    @app.get("/events", response_model=list[EventResponse])
+    def list_events() -> list[EventResponse]:
+        with db_session_factory() as session:
+            rows = session.scalars(
+                select(EventRow).order_by(EventRow.created_at, EventRow.id)
+            ).all()
+            return [_event_response_from_row(row) for row in rows]
 
     return app
 

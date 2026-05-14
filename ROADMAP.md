@@ -361,17 +361,17 @@ API boots locally and supports basic health and object CRUD.
 - [x] Add lab create endpoint schema.
 - [x] Add lab list endpoint.
 - [x] Add lab get endpoint.
-- [ ] Add run create endpoint schema.
-- [ ] Add run list endpoint.
-- [ ] Add approval list endpoint.
-- [ ] Add snapshot list endpoint.
-- [ ] Add export list endpoint.
-- [ ] Add event list endpoint.
+- [x] Add run create endpoint schema.
+- [x] Add run list endpoint.
+- [x] Add approval list endpoint.
+- [x] Add snapshot list endpoint.
+- [x] Add export list endpoint.
+- [x] Add event list endpoint.
 - [x] Add request/response models.
 - [x] Add 404 handling.
 - [x] Add validation error shaping.
 - [x] Add API tests.
-- [ ] Commit API skeleton.
+- [x] Commit API skeleton.
 
 ---
 

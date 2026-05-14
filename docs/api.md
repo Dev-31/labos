@@ -1,6 +1,6 @@
 # LabOS API Guide
 
-Phase 1 currently exposes the first stable control-plane surface for health, profile discovery, and lab request metadata.
+Phase 1 currently exposes the first stable control-plane surface for health, profile discovery, and metadata-backed lab, run, approval, snapshot, export, and event records.
 
 ## Current endpoints
 
@@ -61,6 +61,60 @@ If the lab does not exist, LabOS returns:
 {"detail": "resource_not_found", "resource": "lab"}
 ```
 
+### `POST /runs`
+Creates a queued run record for an existing lab request.
+
+Example request:
+
+```json
+{
+  "lab_id": "<lab-id>",
+  "command": "python -m pytest"
+}
+```
+
+Example response:
+
+```json
+{
+  "id": "<uuid>",
+  "lab_id": "<lab-id>",
+  "state": "queued",
+  "command": "python -m pytest",
+  "created_at": "2026-05-14T00:00:00Z",
+  "updated_at": "2026-05-14T00:00:00Z"
+}
+```
+
+Current API behavior is honest:
+- this records governed run intent in metadata
+- it does **not** execute inside Docker or a microVM yet
+- the runtime adapter work remains a later roadmap phase
+
+### `GET /runs`
+Lists recorded run requests.
+
+### `GET /runs/{run_id}`
+Fetches one recorded run request.
+
+If the run does not exist, LabOS returns:
+
+```json
+{"detail": "resource_not_found", "resource": "run"}
+```
+
+### `GET /approvals`
+Lists recorded approval metadata rows.
+
+### `GET /snapshots`
+Lists recorded snapshot metadata rows.
+
+### `GET /exports`
+Lists recorded export metadata rows.
+
+### `GET /events`
+Lists recorded audit/event metadata rows.
+
 ## Error shape
 
 Request validation errors return a stable machine-readable structure:
@@ -74,11 +128,13 @@ Request validation errors return a stable machine-readable structure:
 }
 ```
 
-## Next planned API groups
+## Honesty boundary
 
-The roadmap still requires additional control-plane groups before v0.1 is complete:
-- `/runs`
-- `/approvals`
-- `/snapshots`
-- `/exports`
-- `/events`
+These endpoints are currently control-plane metadata APIs only. They do not yet promise:
+- runtime execution
+- snapshot creation semantics
+- export quarantine release semantics
+- approval mutation workflows
+- event streaming
+
+Those behaviors remain separate roadmap phases and should not be inferred from the presence of list/create metadata endpoints alone.
