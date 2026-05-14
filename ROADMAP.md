@@ -352,25 +352,25 @@ API boots locally and supports basic health and object CRUD.
 - `/events`
 
 ### Steps
-- [ ] Create FastAPI app factory.
-- [ ] Add settings loader.
-- [ ] Add health endpoint.
-- [ ] Add health test.
-- [ ] Add profiles list endpoint.
-- [ ] Add profiles get endpoint.
-- [ ] Add lab create endpoint schema.
-- [ ] Add lab list endpoint.
-- [ ] Add lab get endpoint.
+- [x] Create FastAPI app factory.
+- [x] Add settings loader.
+- [x] Add health endpoint.
+- [x] Add health test.
+- [x] Add profiles list endpoint.
+- [x] Add profiles get endpoint.
+- [x] Add lab create endpoint schema.
+- [x] Add lab list endpoint.
+- [x] Add lab get endpoint.
 - [ ] Add run create endpoint schema.
 - [ ] Add run list endpoint.
 - [ ] Add approval list endpoint.
 - [ ] Add snapshot list endpoint.
 - [ ] Add export list endpoint.
 - [ ] Add event list endpoint.
-- [ ] Add request/response models.
-- [ ] Add 404 handling.
-- [ ] Add validation error shaping.
-- [ ] Add API tests.
+- [x] Add request/response models.
+- [x] Add 404 handling.
+- [x] Add validation error shaping.
+- [x] Add API tests.
 - [ ] Commit API skeleton.
 
 ---

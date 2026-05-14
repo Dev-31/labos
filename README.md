@@ -24,6 +24,8 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 4. Run the test suite: `uv run pytest`
 5. Start the API: `uv run uvicorn labos.api.app:app --reload`
 6. Check health: `curl http://127.0.0.1:8000/health`
+7. Inspect built-in profiles: `curl http://127.0.0.1:8000/profiles`
+8. Create a governed lab request record: `curl -X POST http://127.0.0.1:8000/labs -H 'content-type: application/json' -d '{"profile_name":"safe-dev","requester_type":"human"}'`
 
 ## Current docs
 - `docs/specs/2026-05-13-labos-design.md`
@@ -32,6 +34,7 @@ Public core here. Private workload packs, datasets, strategies, and sensitive pr
 - `docs/threat-model.md`
 - `docs/repo-sources.md`
 - `docs/policies.md`
+- `docs/api.md`
 - `ROADMAP.md`
 
 ## Built-in policy profiles
