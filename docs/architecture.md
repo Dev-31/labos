@@ -1,31 +1,57 @@
 # LabOS Architecture
 
-LabOS is a policy-first control plane for isolated labs.
+LabOS is a policy-first control plane for isolated labs. The public core is responsible for governance, durability, and operator interfaces first; full runtime orchestration follows only where the implementation is real.
 
 ## Phase 1 scope
 - API + CLI control plane
-- Docker-backed standard labs
-- microVM adapter boundary for later high-risk runtimes
-- policy profiles
-- approvals
-- audit events
-- snapshots
-- export gate
+- policy profiles as the primary operator abstraction
+- durable metadata for labs, runs, approvals, exports, snapshots, events, secret leases, and scheduler jobs
+- Docker-backed runtime adapter implementation
+- microVM-ready runtime contract for later high-risk backend work
+- managed storage, snapshot, export, approval, audit, scheduler, and reconciliation layers
+
+## Control-plane map
+```text
+Operator plane
+  ├── FastAPI app
+  └── Typer CLI
+
+Governance plane
+  ├── profile registry
+  ├── policy evaluation
+  ├── lifecycle/state machine
+  ├── approval workflow
+  └── audit/event recording
+
+Persistence plane
+  ├── SQLAlchemy schema
+  ├── Alembic migrations
+  └── settings/session wiring
+
+Execution boundary
+  ├── runtime adapter interface
+  ├── Docker runtime implementation
+  └── future microVM backend slot
+
+Recovery workers
+  ├── scheduler dispatch service
+  └── reconciliation service
+```
 
 ## Core domain vocabulary
-- `Profile` defines the allowed runtime, network, filesystem, persistence, approval, and export posture.
-- `Lab` is the governed execution environment created from a profile.
-- `Run` is a supervised execution inside a lab.
-- `ApprovalRequest`, `Snapshot`, `ExportRequest`, `AuditEvent`, `SecretLease`, and `SchedulerJob` are first-class records, not ad hoc side channels.
+- `Profile` defines runtime class, network mode, filesystem mode, persistence mode, resource limits, secret allowlist, export posture, approval posture, and audit level.
+- `Lab` is the governed execution environment requested from a profile.
+- `Run` is a governed execution request associated with a lab.
+- `ApprovalRequest`, `Snapshot`, `ExportRequest`, `AuditEvent`, `SecretLease`, and `SchedulerJob` are durable first-class records, not side channels.
 
 ## Policy evaluation
-- Profiles are validated against explicit policy enums instead of free-form strings.
+- Profiles are validated against explicit enums.
 - Risk classes are explicit: `low`, `medium`, `high`, `critical`.
-- Profile evaluation returns an execution plan with runtime class, network mode, filesystem mode, persistence mode, resource limits, audit level, approval requirements, and the injected secret set.
-- Host mounts are forbidden unless a profile explicitly allows them.
-- The default secret set is empty.
-- Network mode is fixed by profile and cannot be widened through request overrides.
-- High-risk and critical exports are deny-until-reviewed: managed export path required plus quarantine/approval before release.
+- Evaluation returns an execution plan with runtime, storage, network, export, approval, secret, and audit posture.
+- Host mounts are forbidden unless explicitly allowed, with hard blocks on home-directory mounts and Docker socket passthrough.
+- Default secret injection is empty.
+- Network mode is profile-owned and cannot be widened via request metadata.
+- High-risk exports are deny-until-reviewed.
 
 ## Lifecycle states
 - lab states: `requested`, `pending_approval`, `approved`, `provisioning`, `running`, `stopped`, `failed`, `destroying`, `destroyed`, `archived`
@@ -34,49 +60,54 @@ LabOS is a policy-first control plane for isolated labs.
 - export states: `requested`, `quarantined`, `approved`, `released`, `rejected`
 - snapshot states: `pending`, `created`, `failed`, `restored`
 
-These states are explicit so policy, storage, runtime, and API layers can share the same lifecycle contract.
+These explicit state machines let API, worker, storage, runtime, and audit layers share one lifecycle contract.
 
 ## Durable metadata
-- SQLAlchemy is the Phase 1 metadata layer.
-- Core durable tables are `labs`, `lab_storage`, `runs`, `approvals`, `exports`, `snapshots`, `secret_leases`, and `events`.
-- Alembic migrations are committed under `alembic/versions/` and remain the supported schema upgrade path for local and CI environments.
+- SQLAlchemy schema lives in `labos/db/schema.py`.
+- Alembic migrations under `alembic/versions/` are the supported schema upgrade path.
+- Current durable tables cover labs, lab storage allocations, runs, approvals, exports, snapshots, secret leases, scheduler jobs, and events.
+- Reconciliation reads durable state as the source of truth and records drift as audit events.
 
-## Managed lab filesystem
-- LabOS reserves a managed filesystem root per lab under `LABOS_MANAGED_STORAGE_ROOT`.
-- Current path convention is `labs/<lab-id>/` with dedicated `workspace`, `exports`, `quarantine`, and `snapshots` subdirectories.
-- Export release copies are published under a managed `released/<export-id>/` subtree inside the same lab root; release is a control-plane action, not a direct host write from the lab.
-- Storage allocation metadata is recorded separately from lab lifecycle metadata so later runtime, snapshot, and retention phases can evolve without overloading the `labs` table.
-- The control plane rejects unmanaged host paths when validating managed storage sources.
+## Storage model
+- Managed storage roots live under `LABOS_MANAGED_STORAGE_ROOT`.
+- Each lab gets a dedicated root with `workspace/`, `exports/`, `quarantine/`, and `snapshots/` subdirectories.
+- Storage allocation metadata is kept separately from lab lifecycle metadata so retention and runtime evolution can change without overloading the `labs` table.
+- Export releases are copied into a managed `released/<export-id>/` subtree instead of granting raw host write access.
+- Snapshot archives represent managed workspace contents only.
+- The control plane rejects unmanaged host paths for export and snapshot operations.
 
-## Phase 1 export gate model
-- Export requests are staged from the managed guest path `/lab/exports/...` into a per-export quarantine directory.
-- Quarantine records include lab identity, optional run identity, hash, size, staged path, and final state.
-- Release copies from quarantine into a managed released directory only after policy review succeeds.
-- High-risk exports are honestly blocked with `export_approval_required` until the later approval workflow lands; LabOS does not pretend that approval automation already exists.
+## Runtime support matrix
+| Surface | Status | Honest boundary |
+| --- | --- | --- |
+| Runtime adapter contract | implemented | Defines create/start/stop/destroy/exec/logs/inspect/inventory methods. |
+| Docker runtime | implemented and tested | Supports container create/start/stop/destroy flows, conservative networking, and managed secret injection at the adapter level. |
+| Public API lab provisioning | not wired yet | `POST /labs` records metadata and storage only; it does not launch a container. |
+| Public API run execution | not wired yet | `POST /runs` records run intent and timeout metadata only. |
+| MicroVM backend | contract only | No Firecracker-class backend shipped in the public core yet. |
 
-## Phase 1 snapshot model
-- Phase 1 snapshots are honest container-storage snapshots: a tarred copy of the managed workspace plus a JSON manifest.
-- Snapshot manifests record provenance for `lab_id`, optional `run_id`, `profile_name`, `runtime_class`, managed workspace path, creation timestamp, archive hash, and archive size.
-- Restore currently rehydrates managed workspace contents for container labs only.
-- MicroVM/runtime-level memory snapshots are not implemented yet and LabOS returns an explicit unsupported-runtime error instead of pretending to offer VM-grade time travel.
+## Export workflow
+1. The control plane validates that a requested artifact path resolves inside the managed guest export tree.
+2. The export gate copies the file into quarantine and records hash, size, provenance, and state.
+3. Approval-required exports stay blocked until an explicit approval decision changes state.
+4. Release copies the quarantined artifact into managed release storage.
 
-## Runtime adapter boundary
-- `RuntimeAdapter` defines the public execution-plane contract: create, start, stop, destroy, exec, logs, inspect, and managed-lab inventory for reconciliation.
-- `DockerRuntime` is the Phase 1 backend and uses managed naming conventions for containers (`labos-<lab_id>`) and networks (`labos-net-<lab_id>`).
-- Secret injection is explicit and gated through approved, non-expired `SecretLease` records only.
-- CPU and memory limits are applied at container creation time.
-- Docker network mode is conservative: `deny` maps to `network_disabled`, while non-deny modes use LabOS-managed networks. This is not yet a full egress allowlist engine.
-- Persistent-volume lifecycle policy remains a separate storage-layer concern. The runtime attaches managed volumes but does not claim snapshot or retention semantics that do not exist yet.
+## Approval workflow
+1. Policy or action-specific rules create an approval row.
+2. Operator surfaces list the approval with expiry metadata.
+3. An explicit approve/deny action mutates the associated lab or export record.
+4. Reconciliation expires stale approvals and emits `approval.expired` audit events.
 
 ## Reliability and reconciliation
-- The Phase 1 worker layer now includes a reconciliation service that scans durable metadata for half-created labs before they silently drift.
-- Labs missing a storage record or managed storage root are marked `failed` and recorded with `lab.reconciliation_failed` audit events.
-- Labs stuck in `destroying` can be retried against the managed storage layer; successful retries record `lab.destroyed`, while repeated failures emit `lab.destroy_retry_failed` and eventually `lab.destroy_failed` instead of silently looping forever.
-- Runtime inventory can be queried for LabOS-managed containers so orphaned runtime artifacts are detected and surfaced as `runtime_lab.orphan_detected` events.
-- This is still managed-filesystem cleanup and metadata recovery only; LabOS does not claim full runtime self-healing or container/microVM teardown guarantees yet.
+- Broken lab metadata/storage pairings are marked `failed` with audit evidence.
+- Destroying labs can be retried and eventually hard-failed with explicit retry/failure events.
+- Expired secret leases are revoked automatically.
+- Overdue queued/starting/running runs are marked `timed_out` by reconciliation.
+- Runtime inventory is inspected for orphaned or zombie LabOS-managed artifacts.
+- These are control-plane recovery features, not a claim of perfect runtime self-healing.
 
 ## Product boundaries
 - public core platform only
-- no private datasets, profiles, or strategy packs in this repo
+- no private datasets, strategies, credentials brokers, or workload packs in this repo
 - no web dashboard in Phase 1
 - no fake microVM guarantees before a real backend exists
+- no claim that snapshot restore provides VM-memory or time-travel semantics

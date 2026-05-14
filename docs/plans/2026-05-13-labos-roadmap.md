@@ -738,18 +738,18 @@ A serious engineer can understand and extend LabOS without talking to us first.
 - roadmap
 
 ### Steps
-- [ ] Rewrite README to match actual implementation.
-- [ ] Add quickstart.
-- [ ] Add local dev setup.
-- [ ] Add architecture diagram or text map.
-- [ ] Document each profile.
-- [ ] Document runtime support matrix.
-- [ ] Document export workflow.
-- [ ] Document approval workflow.
-- [ ] Document storage model.
-- [ ] Document public-core/private-workload split.
-- [ ] Add CONTRIBUTING.md.
-- [ ] Commit docs.
+- [x] Rewrite README to match actual implementation.
+- [x] Add quickstart.
+- [x] Add local dev setup.
+- [x] Add architecture diagram or text map.
+- [x] Document each profile.
+- [x] Document runtime support matrix.
+- [x] Document export workflow.
+- [x] Document approval workflow.
+- [x] Document storage model.
+- [x] Document public-core/private-workload split.
+- [x] Add CONTRIBUTING.md.
+- [x] Commit docs.
 
 ---
 
