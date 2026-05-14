@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from labos import __version__
 from labos.config.profiles.base import DEFAULT_PROFILES
 from labos.config.settings import Settings, load_settings
+from labos.core.enums import ApprovalState, ExportState, LabState
 from labos.core.models import (
+    ApprovalDecisionRequest,
     ApprovalResponse,
     ErrorResponse,
     EventResponse,
@@ -106,11 +108,100 @@ def _approval_response_from_row(row: ApprovalRow) -> ApprovalResponse:
     return ApprovalResponse(
         id=row.id,
         lab_id=row.lab_id,
+        resource_type=row.resource_type,
+        resource_id=row.resource_id,
         action=row.action,
+        reason=row.reason,
+        requested_by=row.requested_by,
+        state=row.state,
         approved=row.approved,
+        decision_comment=row.decision_comment,
+        decided_by=row.decided_by,
+        expires_at=row.expires_at,
+        decided_at=row.decided_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
+
+
+def _record_approval_request(
+    session: Session,
+    *,
+    lab_id: str | None,
+    resource_type: str,
+    resource_id: str,
+    action: str,
+    reason: str,
+    requested_by: str,
+) -> ApprovalRow:
+    approval = ApprovalRow(
+        id=str(uuid4()),
+        lab_id=lab_id,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        action=action,
+        reason=reason,
+        requested_by=requested_by,
+        state=ApprovalState.REQUESTED.value,
+        approved=False,
+        expires_at=ApprovalRow.default_expiry(),
+    )
+    session.add(approval)
+    return approval
+
+
+def _ensure_approval_pending(row: ApprovalRow) -> None:
+    if row.state != ApprovalState.REQUESTED.value:
+        raise ConflictError("approval_not_pending", resource="approval")
+    if row.expires_at is not None:
+        expires_at = row.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        current_time = datetime.now(expires_at.tzinfo)
+        if expires_at <= current_time:
+            row.state = ApprovalState.EXPIRED.value
+            row.approved = False
+            row.decided_at = current_time
+            raise ConflictError("approval_request_expired", resource="approval")
+
+
+def _apply_approval_decision(
+    session: Session,
+    *,
+    row: ApprovalRow,
+    decision: ApprovalState,
+    actor: str,
+    comment: str | None,
+) -> None:
+    _ensure_approval_pending(row)
+
+    if decision is ApprovalState.REJECTED and (comment is None or comment.strip() == ""):
+        raise ConflictError("approval_comment_required", resource="approval")
+
+    row.state = decision.value
+    row.approved = decision is ApprovalState.APPROVED
+    row.decision_comment = comment
+    row.decided_by = actor
+    row.decided_at = datetime.now(UTC)
+
+    if row.resource_type == "lab":
+        lab = session.get(LabRow, row.resource_id)
+        if lab is None:
+            raise ResourceNotFoundError("lab")
+        lab.state = (
+            LabState.APPROVED.value if decision is ApprovalState.APPROVED else LabState.FAILED.value
+        )
+    elif row.resource_type == "export":
+        export = session.get(ExportRow, row.resource_id)
+        if export is None:
+            raise ResourceNotFoundError("export")
+        if decision is ApprovalState.APPROVED:
+            export.approval_required = False
+            export.state = ExportState.APPROVED.value
+            export.denial_reason = None
+        else:
+            export.state = ExportState.REJECTED.value
+            export.denial_reason = comment
 
 
 def _snapshot_response_from_row(
@@ -297,6 +388,27 @@ def create_app(
         with db_session_factory() as session:
             session.add(row)
             session.add(storage_row)
+            if decision.approval_required:
+                approval = _record_approval_request(
+                    session,
+                    lab_id=lab_id,
+                    resource_type="lab",
+                    resource_id=lab_id,
+                    action="lab.create",
+                    reason=", ".join(decision.approval_reasons),
+                    requested_by=request.requester_type,
+                )
+                _record_event(
+                    session,
+                    event_type="approval.requested",
+                    lab_id=lab_id,
+                    payload={
+                        "approval_id": approval.id,
+                        "resource_type": approval.resource_type,
+                        "resource_id": approval.resource_id,
+                        "action": approval.action,
+                    },
+                )
             session.commit()
             session.refresh(row)
             session.refresh(storage_row)
@@ -365,6 +477,68 @@ def create_app(
                 select(ApprovalRow).order_by(ApprovalRow.created_at, ApprovalRow.id)
             ).all()
             return [_approval_response_from_row(row) for row in rows]
+
+    @app.post("/approvals/{approval_id}/approve", response_model=ApprovalResponse)
+    def approve_request(approval_id: str, request: ApprovalDecisionRequest) -> ApprovalResponse:
+        with db_session_factory() as session:
+            row = session.get(ApprovalRow, approval_id)
+            if row is None:
+                raise ResourceNotFoundError("approval")
+
+            _apply_approval_decision(
+                session,
+                row=row,
+                decision=ApprovalState.APPROVED,
+                actor=request.actor,
+                comment=request.comment,
+            )
+            _record_event(
+                session,
+                event_type="approval.approved",
+                lab_id=row.lab_id,
+                payload={
+                    "approval_id": row.id,
+                    "resource_type": row.resource_type,
+                    "resource_id": row.resource_id,
+                    "action": row.action,
+                    "actor": request.actor,
+                    "comment": request.comment,
+                },
+            )
+            session.commit()
+            session.refresh(row)
+            return _approval_response_from_row(row)
+
+    @app.post("/approvals/{approval_id}/deny", response_model=ApprovalResponse)
+    def deny_request(approval_id: str, request: ApprovalDecisionRequest) -> ApprovalResponse:
+        with db_session_factory() as session:
+            row = session.get(ApprovalRow, approval_id)
+            if row is None:
+                raise ResourceNotFoundError("approval")
+
+            _apply_approval_decision(
+                session,
+                row=row,
+                decision=ApprovalState.REJECTED,
+                actor=request.actor,
+                comment=request.comment,
+            )
+            _record_event(
+                session,
+                event_type="approval.denied",
+                lab_id=row.lab_id,
+                payload={
+                    "approval_id": row.id,
+                    "resource_type": row.resource_type,
+                    "resource_id": row.resource_id,
+                    "action": row.action,
+                    "actor": request.actor,
+                    "comment": request.comment,
+                },
+            )
+            session.commit()
+            session.refresh(row)
+            return _approval_response_from_row(row)
 
     @app.get("/snapshots", response_model=list[SnapshotResponse])
     def list_snapshots() -> list[SnapshotResponse]:
@@ -516,6 +690,28 @@ def create_app(
                     "approval_required": row.approval_required,
                 },
             )
+            if staged.approval_required:
+                approval = _record_approval_request(
+                    session,
+                    lab_id=lab.id,
+                    resource_type="export",
+                    resource_id=export_id,
+                    action="export.release",
+                    reason="profile requires export approval",
+                    requested_by="system",
+                )
+                _record_event(
+                    session,
+                    event_type="approval.requested",
+                    lab_id=lab.id,
+                    run_id=request.run_id,
+                    payload={
+                        "approval_id": approval.id,
+                        "resource_type": approval.resource_type,
+                        "resource_id": approval.resource_id,
+                        "action": approval.action,
+                    },
+                )
             session.commit()
             session.refresh(row)
             return _export_response_from_row(row)

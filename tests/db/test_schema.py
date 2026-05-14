@@ -1,3 +1,4 @@
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from labos.db.schema import Base
@@ -27,3 +28,23 @@ def test_session_factory_binds_to_sqlite_engine() -> None:
         assert isinstance(session, Session)
         assert session.bind is not None
         assert session.bind.dialect.name == "sqlite"
+
+
+def test_approvals_table_contains_workflow_columns() -> None:
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("approvals")}
+
+    assert {
+        "resource_type",
+        "resource_id",
+        "reason",
+        "requested_by",
+        "state",
+        "approved",
+        "decision_comment",
+        "decided_by",
+        "expires_at",
+        "decided_at",
+    }.issubset(columns)

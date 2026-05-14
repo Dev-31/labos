@@ -46,6 +46,84 @@ def test_create_list_and_get_lab(tmp_path: Path) -> None:
     assert get_response.status_code == 200
     assert get_response.json() == created
 
+    approvals_response = client.get("/approvals")
+    assert approvals_response.status_code == 200
+    assert approvals_response.json() == []
+
+
+def test_high_risk_lab_creation_records_pending_approval(tmp_path: Path) -> None:
+    client = build_test_client(tmp_path)
+
+    create_response = client.post(
+        "/labs",
+        json={"profile_name": "red-zone", "requester_type": "human"},
+    )
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert created["state"] == "pending_approval"
+
+    approvals_response = client.get("/approvals")
+    assert approvals_response.status_code == 200
+    approvals = approvals_response.json()
+    assert len(approvals) == 1
+    assert approvals[0]["resource_type"] == "lab"
+    assert approvals[0]["resource_id"] == created["id"]
+    assert approvals[0]["action"] == "lab.create"
+    assert approvals[0]["state"] == "requested"
+    assert approvals[0]["approved"] is False
+
+
+def test_approving_lab_request_advances_lab_to_approved(tmp_path: Path) -> None:
+    client = build_test_client(tmp_path)
+
+    create_response = client.post(
+        "/labs",
+        json={"profile_name": "red-zone", "requester_type": "human"},
+    )
+    approval = client.get("/approvals").json()[0]
+
+    decision_response = client.post(
+        f"/approvals/{approval['id']}/approve",
+        json={"actor": "operator", "comment": "manual review accepted"},
+    )
+
+    assert decision_response.status_code == 200
+    decided = decision_response.json()
+    assert decided["state"] == "approved"
+    assert decided["approved"] is True
+    assert decided["decision_comment"] == "manual review accepted"
+    assert decided["decided_by"] == "operator"
+
+    get_lab_response = client.get(f"/labs/{create_response.json()['id']}")
+    assert get_lab_response.status_code == 200
+    assert get_lab_response.json()["state"] == "approved"
+
+
+def test_denying_lab_request_marks_lab_failed(tmp_path: Path) -> None:
+    client = build_test_client(tmp_path)
+
+    create_response = client.post(
+        "/labs",
+        json={"profile_name": "red-zone", "requester_type": "human"},
+    )
+    approval = client.get("/approvals").json()[0]
+
+    decision_response = client.post(
+        f"/approvals/{approval['id']}/deny",
+        json={"actor": "operator", "comment": "profile denied for this request"},
+    )
+
+    assert decision_response.status_code == 200
+    decided = decision_response.json()
+    assert decided["state"] == "rejected"
+    assert decided["approved"] is False
+    assert decided["decision_comment"] == "profile denied for this request"
+
+    get_lab_response = client.get(f"/labs/{create_response.json()['id']}")
+    assert get_lab_response.status_code == 200
+    assert get_lab_response.json()["state"] == "failed"
+
 
 def test_create_lab_returns_custom_validation_errors(tmp_path: Path) -> None:
     client = build_test_client(tmp_path)

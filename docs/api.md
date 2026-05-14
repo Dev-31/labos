@@ -116,6 +116,40 @@ If the run does not exist, LabOS returns:
 ### `GET /approvals`
 Lists recorded approval metadata rows.
 
+Each row includes resource-scoped approval details such as:
+- `resource_type`
+- `resource_id`
+- `action`
+- `state`
+- `reason`
+- `requested_by`
+- `decided_by`
+- `expires_at`
+
+### `POST /approvals/{approval_id}/approve`
+Approves a pending approval request and applies the governed side effect.
+
+Example request:
+
+```json
+{
+  "actor": "operator",
+  "comment": "manual review accepted"
+}
+```
+
+### `POST /approvals/{approval_id}/deny`
+Rejects a pending approval request and records the denial metadata.
+
+Example request:
+
+```json
+{
+  "actor": "operator",
+  "comment": "artifact denied by manual review"
+}
+```
+
 ### `GET /snapshots`
 Lists recorded snapshot metadata rows.
 
@@ -168,7 +202,7 @@ Copies a quarantined artifact into a managed released directory after policy rev
 
 Current API behavior is honest:
 - release is available for non-approval exports now
-- high-risk exports return `409 {"detail":"export_approval_required","resource":"export"}` until the later approval workflow exists
+- high-risk exports return `409 {"detail":"export_approval_required","resource":"export"}` until an approval decision is recorded
 - release copies are control-plane managed; labs do not write directly to host release locations
 
 ### `POST /exports/{export_id}/deny`

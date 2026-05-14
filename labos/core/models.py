@@ -48,11 +48,25 @@ class RunResponse(BaseModel):
     updated_at: datetime
 
 
+class ApprovalDecisionRequest(BaseModel):
+    actor: str
+    comment: str | None = None
+
+
 class ApprovalResponse(BaseModel):
     id: str
     lab_id: str | None
+    resource_type: str
+    resource_id: str
     action: str
+    reason: str
+    requested_by: str
+    state: str
     approved: bool
+    decision_comment: str | None = None
+    decided_by: str | None = None
+    expires_at: datetime | None = None
+    decided_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

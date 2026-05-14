@@ -54,4 +54,6 @@ Operator-facing YAML examples live in `examples/profiles/`.
 - LabOS now allocates a managed lab filesystem root for each recorded lab request under `LABOS_MANAGED_STORAGE_ROOT` (default `./.labos/storage`).
 - Each lab gets reserved `workspace`, `exports`, `quarantine`, and `snapshots` paths, recorded in durable metadata.
 - Export release copies are published under a managed `released/<export-id>/` directory only through the control-plane release endpoint.
-- Snapshot restore is currently limited to managed container workspaces, and high-risk exports still stop at `export_approval_required` until the later approval workflow ships.
+- Snapshot restore is currently limited to managed container workspaces.
+- High-risk lab creation and high-risk export release now create explicit approval records that can be listed and decided through the API.
+- The CLI currently includes `labos approvals list`, `labos approvals approve`, and `labos approvals deny` against `LABOS_API_URL` (default `http://127.0.0.1:8000`).

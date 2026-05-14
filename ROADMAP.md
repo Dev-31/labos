@@ -529,19 +529,19 @@ High-risk lab creation and export actions can be blocked pending approval.
 - long-lived persistent red-zone lab creation
 
 ### Steps
-- [ ] Define approval request schema.
-- [ ] Define approval decision schema.
-- [ ] Write tests for actions that should auto-approve.
-- [ ] Write tests for actions that should require approval.
-- [ ] Implement approval record creation.
-- [ ] Implement pending state handling.
-- [ ] Implement approve action.
-- [ ] Implement deny action.
-- [ ] Implement request expiry.
-- [ ] Implement event generation on decisions.
-- [ ] Add API endpoints.
-- [ ] Add CLI commands.
-- [ ] Commit approvals module.
+- [x] Define approval request schema.
+- [x] Define approval decision schema.
+- [x] Write tests for actions that should auto-approve.
+- [x] Write tests for actions that should require approval.
+- [x] Implement approval record creation.
+- [x] Implement pending state handling.
+- [x] Implement approve action.
+- [x] Implement deny action.
+- [x] Implement request expiry.
+- [x] Implement event generation on decisions.
+- [x] Add API endpoints.
+- [x] Add CLI commands.
+- [x] Commit approvals module.
 
 ---
 

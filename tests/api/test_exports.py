@@ -79,6 +79,10 @@ def test_create_export_stages_artifact_and_records_provenance(tmp_path: Path) ->
     event_types = [event["event_type"] for event in events_response.json()]
     assert event_types == ["export.requested", "export.staged"]
 
+    approvals_response = client.get("/approvals")
+    assert approvals_response.status_code == 200
+    assert approvals_response.json() == []
+
 
 def test_release_export_copies_artifact_to_approved_area(tmp_path: Path) -> None:
     client = build_test_client(tmp_path)
@@ -123,6 +127,15 @@ def test_high_risk_export_requires_approval_before_release(tmp_path: Path) -> No
     payload = create_response.json()
     assert payload["approval_required"] is True
 
+    approvals_response = client.get("/approvals")
+    assert approvals_response.status_code == 200
+    approvals = approvals_response.json()
+    export_approvals = [approval for approval in approvals if approval["resource_type"] == "export"]
+    assert len(export_approvals) == 1
+    assert export_approvals[0]["resource_id"] == payload["id"]
+    assert export_approvals[0]["action"] == "export.release"
+    assert export_approvals[0]["state"] == "requested"
+
     release_response = client.post(f"/exports/{payload['id']}/release")
 
     assert release_response.status_code == 409
@@ -134,7 +147,72 @@ def test_high_risk_export_requires_approval_before_release(tmp_path: Path) -> No
     events_response = client.get("/events")
     assert events_response.status_code == 200
     event_types = [event["event_type"] for event in events_response.json()]
-    assert event_types == ["export.requested", "export.staged", "export.release_blocked"]
+    assert event_types[-1] == "export.release_blocked"
+    assert event_types.count("approval.requested") == 2
+    assert "export.requested" in event_types
+    assert "export.staged" in event_types
+
+
+def test_approving_high_risk_export_unblocks_release(tmp_path: Path) -> None:
+    client = build_test_client(tmp_path)
+    lab = create_lab(client, profile_name="red-zone")
+    exports_path = Path(lab["storage"]["exports_path"])
+    (exports_path / "report.txt").write_text("sensitive artifact")
+
+    create_response = client.post(
+        "/exports",
+        json={"lab_id": lab["id"], "source_path": "/lab/exports/report.txt"},
+    )
+    assert create_response.status_code == 201
+    export_payload = create_response.json()
+    approval = [
+        item for item in client.get("/approvals").json() if item["resource_type"] == "export"
+    ][0]
+
+    decision_response = client.post(
+        f"/approvals/{approval['id']}/approve",
+        json={"actor": "operator", "comment": "artifact cleared for release"},
+    )
+    assert decision_response.status_code == 200
+    assert decision_response.json()["state"] == "approved"
+
+    release_response = client.post(f"/exports/{export_payload['id']}/release")
+
+    assert release_response.status_code == 200
+    released = release_response.json()
+    assert released["state"] == "released"
+    assert released["approval_required"] is False
+
+
+def test_denying_high_risk_export_via_approval_marks_export_rejected(tmp_path: Path) -> None:
+    client = build_test_client(tmp_path)
+    lab = create_lab(client, profile_name="red-zone")
+    exports_path = Path(lab["storage"]["exports_path"])
+    (exports_path / "report.txt").write_text("sensitive artifact")
+
+    create_response = client.post(
+        "/exports",
+        json={"lab_id": lab["id"], "source_path": "/lab/exports/report.txt"},
+    )
+    assert create_response.status_code == 201
+    export_payload = create_response.json()
+    approval = [
+        item for item in client.get("/approvals").json() if item["resource_type"] == "export"
+    ][0]
+
+    decision_response = client.post(
+        f"/approvals/{approval['id']}/deny",
+        json={"actor": "operator", "comment": "artifact denied by manual review"},
+    )
+    assert decision_response.status_code == 200
+    assert decision_response.json()["state"] == "rejected"
+
+    get_exports_response = client.get("/exports")
+    assert get_exports_response.status_code == 200
+    export = get_exports_response.json()[0]
+    assert export["id"] == export_payload["id"]
+    assert export["state"] == "rejected"
+    assert export["denial_reason"] == "artifact denied by manual review"
 
 
 def test_deny_export_marks_request_rejected(tmp_path: Path) -> None:

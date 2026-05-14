@@ -35,7 +35,17 @@ def test_list_approvals_snapshots_exports_and_events(tmp_path: Path) -> None:
     client, session = build_test_client(tmp_path)
     lab_id = seed_lab(session)
 
-    approval = ApprovalRow(id=str(uuid4()), lab_id=lab_id, action="start", approved=False)
+    approval = ApprovalRow(
+        id=str(uuid4()),
+        lab_id=lab_id,
+        resource_type="lab",
+        resource_id=lab_id,
+        action="lab.create",
+        reason="high-risk profile requires approval",
+        requested_by="human",
+        state="requested",
+        approved=False,
+    )
     snapshot = SnapshotRow(id=str(uuid4()), lab_id=lab_id, backend_ref="snapshot://lab/1")
     export = ExportRow(
         id=str(uuid4()),
@@ -72,8 +82,10 @@ def test_list_approvals_snapshots_exports_and_events(tmp_path: Path) -> None:
 
     assert approvals_response.status_code == 200
     assert approvals_response.json()[0]["id"] == approval_id
-    assert approvals_response.json()[0]["action"] == "start"
+    assert approvals_response.json()[0]["action"] == "lab.create"
     assert approvals_response.json()[0]["approved"] is False
+    assert approvals_response.json()[0]["resource_type"] == "lab"
+    assert approvals_response.json()[0]["state"] == "requested"
 
     assert snapshots_response.status_code == 200
     assert snapshots_response.json()[0]["id"] == snapshot_id
