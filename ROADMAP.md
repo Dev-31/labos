@@ -704,16 +704,16 @@ Prove the product acts like a containment platform, not just claims it.
 Threat model has concrete verification coverage.
 
 ### Steps
-- [ ] Turn threat-model bullets into test cases.
-- [ ] Verify blocked home mount paths.
-- [ ] Verify denied Docker socket mount.
-- [ ] Verify empty default secret injection.
-- [ ] Verify network deny behavior.
-- [ ] Verify export quarantine cannot be bypassed from public APIs.
-- [ ] Verify actor/audit trail for dangerous actions.
-- [ ] Add SECURITY.md.
-- [ ] Add disclosure/contact policy.
-- [ ] Commit security pass.
+- [x] Turn threat-model bullets into test cases.
+- [x] Verify blocked home mount paths.
+- [x] Verify denied Docker socket mount.
+- [x] Verify empty default secret injection.
+- [x] Verify network deny behavior.
+- [x] Verify export quarantine cannot be bypassed from public APIs.
+- [x] Verify actor/audit trail for dangerous actions.
+- [x] Add SECURITY.md.
+- [x] Add disclosure/contact policy.
+- [x] Commit security pass.
 
 ---
 

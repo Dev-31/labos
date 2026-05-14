@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 from labos.config.profiles.base import DEFAULT_PROFILES
 from labos.core.enums import AuditLevel
@@ -16,6 +17,15 @@ from labos.core.policy_models import (
 )
 
 MANAGED_EXPORT_PREFIXES = ("/lab/exports/", "/artifacts/approved/")
+FORBIDDEN_HOST_MOUNT_PATHS = (
+    PurePosixPath("/var/run/docker.sock"),
+    PurePosixPath("/run/docker.sock"),
+)
+FORBIDDEN_HOST_MOUNT_PREFIXES = (
+    PurePosixPath("/home"),
+    PurePosixPath("/root"),
+    PurePosixPath("/Users"),
+)
 
 
 @dataclass(frozen=True)
@@ -75,6 +85,29 @@ class PolicyEngine:
         if requested_overrides[field_name] != normalized_expected:
             raise ValueError(f"{field_name} is fixed by profile")
 
+    def _validate_host_mounts(self, host_mounts: object, *, host_mounts_allowed: bool) -> None:
+        if host_mounts in (None, []):
+            return
+        if not isinstance(host_mounts, list):
+            raise ValueError("host_mounts must be a list of SOURCE:TARGET entries")
+        if host_mounts_allowed is False:
+            raise ValueError(
+                "host mounts are forbidden unless the profile explicitly allows them"
+            )
+
+        for mount_entry in host_mounts:
+            if not isinstance(mount_entry, str) or ":" not in mount_entry:
+                raise ValueError("host_mounts entries must use SOURCE:TARGET format")
+            host_source, _target = mount_entry.split(":", 1)
+            host_path = PurePosixPath(host_source)
+            if host_path in FORBIDDEN_HOST_MOUNT_PATHS:
+                raise ValueError("Docker socket mounts are forbidden")
+            if any(
+                host_path == prefix or prefix in host_path.parents
+                for prefix in FORBIDDEN_HOST_MOUNT_PREFIXES
+            ):
+                raise ValueError("host mounts under home directories are forbidden")
+
     def validate_request(
         self,
         profile_name: str,
@@ -88,10 +121,7 @@ class PolicyEngine:
             raise ValueError("host environment inheritance is forbidden")
 
         host_mounts = requested_overrides.get("host_mounts", [])
-        if host_mounts and not profile.allow_host_mounts:
-            raise ValueError(
-                "host mounts are forbidden unless the profile explicitly allows them"
-            )
+        self._validate_host_mounts(host_mounts, host_mounts_allowed=profile.allow_host_mounts)
 
         self._enforce_profile_locked_field(
             field_name="network_mode",
