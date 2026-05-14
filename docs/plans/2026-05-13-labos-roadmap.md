@@ -473,7 +473,7 @@ A lab or its managed state can be snapshotted and restored according to policy.
 - [x] Implement snapshot restore request validation.
 - [x] Implement restore path for supported snapshot type.
 - [x] Add failure handling for unsupported runtime/snapshot combo.
-- [ ] Commit snapshot module.
+- [x] Commit snapshot module.
 
 ---
 
