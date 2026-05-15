@@ -58,12 +58,21 @@ def _docker_probe_payload(probe: Any) -> dict[str, Any]:
     return {
         "cli_present": probe.cli_present,
         "cli_path": probe.cli_path,
+        "current_user": probe.current_user,
         "daemon_reachable": probe.daemon_reachable,
         "daemon_error": probe.daemon_error,
+        "daemon_target": probe.daemon_target,
         "detail": probe.detail,
         "issue_code": probe.issue_code,
         "remediation": probe.remediation,
         "ready": probe.ready,
+        "socket_exists": probe.socket_exists,
+        "socket_group": probe.socket_group,
+        "socket_mode": probe.socket_mode,
+        "socket_owner": probe.socket_owner,
+        "socket_path": probe.socket_path,
+        "user_groups": list(probe.user_groups),
+        "user_in_socket_group": probe.user_in_socket_group,
     }
 
 
@@ -454,10 +463,25 @@ def release_evidence() -> None:
                 "Git issue code": str(status["git"]["issue_code"]),
                 "Git remediation": str(status["git"]["remediation"]),
                 "Docker CLI path": status["docker"]["cli_path"] or "unknown",
+                "Docker current user": status["docker"]["current_user"] or "unknown",
                 "Docker daemon error": status["docker"]["daemon_error"] or "n/a",
+                "Docker daemon target": status["docker"]["daemon_target"] or "unknown",
                 "Docker issue code": status["docker"]["issue_code"],
                 "Docker integration notes": status["docker"]["detail"],
                 "Docker remediation": status["docker"]["remediation"],
+                "Docker socket path": status["docker"]["socket_path"] or "n/a",
+                "Docker socket owner": status["docker"]["socket_owner"] or "n/a",
+                "Docker socket group": status["docker"]["socket_group"] or "n/a",
+                "Docker socket mode": status["docker"]["socket_mode"] or "n/a",
+                "Docker socket exists": "yes" if status["docker"]["socket_exists"] else "no",
+                "Docker user groups": ", ".join(status["docker"]["user_groups"]) or "none",
+                "Docker user in socket group": (
+                    "yes"
+                    if status["docker"]["user_in_socket_group"] is True
+                    else "no"
+                    if status["docker"]["user_in_socket_group"] is False
+                    else "unknown"
+                ),
                 "Docs validated": ", ".join(docs_validated),
                 "Honesty boundary confirmed": "yes" if honesty_boundary_confirmed else "no",
                 "Install smoke": "uv sync --extra dev",

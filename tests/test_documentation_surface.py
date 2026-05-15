@@ -76,9 +76,17 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "git issue code" in release_checklist.lower()
     assert "git remediation" in release_checklist.lower()
     assert "cli_path" in release_checklist
+    assert "current_user" in release_checklist
     assert "daemon_error" in release_checklist
+    assert "daemon_target" in release_checklist
     assert "issue_code" in release_checklist
     assert "remediation" in release_checklist
+    assert "socket_path" in release_checklist
+    assert "socket_owner" in release_checklist
+    assert "socket_group" in release_checklist
+    assert "socket_mode" in release_checklist
+    assert "user_groups" in release_checklist
+    assert "user_in_socket_group" in release_checklist
     assert "labos release smoke-docs" in release_checklist
     assert "labos release smoke-cli" in release_checklist
     assert "labos release smoke-local" in release_checklist
@@ -100,9 +108,17 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "git issue code" in readme.lower()
     assert "git remediation" in readme.lower()
     assert "cli_path" in readme
+    assert "current_user" in readme
     assert "daemon_error" in readme
+    assert "daemon_target" in readme
     assert "issue_code" in readme
     assert "remediation" in readme
+    assert "socket_path" in readme
+    assert "socket_owner" in readme
+    assert "socket_group" in readme
+    assert "socket_mode" in readme
+    assert "user_groups" in readme
+    assert "user_in_socket_group" in readme
     assert "labos release smoke-docs" in readme
     assert "labos release smoke-cli" in readme
     assert "labos release smoke-local" in readme
@@ -120,9 +136,17 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "git issue code" in cli_guide.lower()
     assert "git remediation" in cli_guide.lower()
     assert "cli_path" in cli_guide
+    assert "current_user" in cli_guide
     assert "daemon_error" in cli_guide
+    assert "daemon_target" in cli_guide
     assert "issue_code" in cli_guide
     assert "remediation" in cli_guide
+    assert "socket_path" in cli_guide
+    assert "socket_owner" in cli_guide
+    assert "socket_group" in cli_guide
+    assert "socket_mode" in cli_guide
+    assert "user_groups" in cli_guide
+    assert "user_in_socket_group" in cli_guide
     assert "labos release smoke-docs" in cli_guide
     assert "labos release smoke-cli" in cli_guide
     assert "labos release smoke-local" in cli_guide

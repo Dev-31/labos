@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from labos.runtimes.docker_probe import probe_docker_environment
 
 
@@ -60,6 +62,48 @@ def test_probe_reports_permission_denied_daemon_access() -> None:
         "(for example via docker group membership or a rootless Docker context)"
     )
     assert "permission denied" in (result.daemon_error or "")
+
+
+def test_probe_reports_socket_access_context_for_unix_target(monkeypatch, tmp_path) -> None:
+    socket_path = tmp_path / "docker.sock"
+    socket_path.touch()
+
+    monkeypatch.setattr("labos.runtimes.docker_probe.getpass.getuser", lambda: "ubuntu")
+    monkeypatch.setattr("labos.runtimes.docker_probe.os.getgroups", lambda: [1001, 1002])
+
+    def fake_group_from_gid(gid: int) -> SimpleNamespace:
+        mapping = {
+            1001: SimpleNamespace(gr_name="ubuntu"),
+            1002: SimpleNamespace(gr_name="adm"),
+            4242: SimpleNamespace(gr_name="docker"),
+        }
+        return mapping[gid]
+
+    monkeypatch.setattr("labos.runtimes.docker_probe.grp.getgrgid", fake_group_from_gid)
+    monkeypatch.setattr(
+        "labos.runtimes.docker_probe.pwd.getpwuid",
+        lambda uid: SimpleNamespace(pw_name="root"),
+    )
+    monkeypatch.setattr(
+        "labos.runtimes.docker_probe.os.stat",
+        lambda path: SimpleNamespace(st_uid=0, st_gid=4242, st_mode=0o140660),
+    )
+
+    result = probe_docker_environment(
+        which=lambda _name: "/usr/bin/docker",
+        client_factory=lambda: (_ for _ in ()).throw(PermissionError("permission denied")),
+        env={"DOCKER_HOST": f"unix://{socket_path}"},
+    )
+
+    assert result.daemon_target == f"unix://{socket_path}"
+    assert result.current_user == "ubuntu"
+    assert result.user_groups == ("adm", "ubuntu")
+    assert result.socket_path == str(socket_path)
+    assert result.socket_exists is True
+    assert result.socket_owner == "root"
+    assert result.socket_group == "docker"
+    assert result.socket_mode == "660"
+    assert result.user_in_socket_group is False
 
 
 def test_probe_reports_ready_environment() -> None:

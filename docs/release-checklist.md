@@ -34,9 +34,9 @@ make probe-docker
 
 Record the command outputs or CI links used for the release decision.
 
-Run `labos release readiness` before the Docker-specific checks so the current blockers are explicit in one JSON payload. Record the `next_action`, `pending_steps`, and `tag_ready` fields alongside the blocker list so the release decision is auditable. Also capture `git.entries`, `git.issue_code`, and `git.remediation` from that payload so a dirty checkout points at exact paths instead of a vague failure, and capture `docker.cli_path`, `docker.daemon_error`, `docker.issue_code`, and `docker.remediation` so the evidence shows whether Docker was missing entirely, merely unreachable, or blocked by daemon permissions.
+Run `labos release readiness` before the Docker-specific checks so the current blockers are explicit in one JSON payload. Record the `next_action`, `pending_steps`, and `tag_ready` fields alongside the blocker list so the release decision is auditable. Also capture `git.entries`, `git.issue_code`, and `git.remediation` from that payload so a dirty checkout points at exact paths instead of a vague failure, and capture `docker.cli_path`, `docker.daemon_error`, `docker.issue_code`, `docker.remediation`, `docker.current_user`, `docker.user_groups`, `docker.daemon_target`, `docker.socket_path`, `docker.socket_owner`, `docker.socket_group`, `docker.socket_mode`, and `docker.user_in_socket_group` so the evidence shows whether Docker was missing entirely, merely unreachable, or blocked by daemon permissions.
 
-Run `labos release evidence` when you want the evidence-template fields pre-filled with the current commit SHA, standard verification commands, docs surface, current Git/Docker readiness detail, and the same `next_action` / `pending_steps` / `tag_ready` fields used to justify whether tagging is allowed. Preserve the nested `git.entries`, `git.issue_code`, and `git.remediation` values in the release record when the checkout is still dirty, and preserve the nested `docker.cli_path`, `docker.daemon_error`, `docker.issue_code`, and `docker.remediation` values when Docker is the remaining blocker.
+Run `labos release evidence` when you want the evidence-template fields pre-filled with the current commit SHA, standard verification commands, docs surface, current Git/Docker readiness detail, and the same `next_action` / `pending_steps` / `tag_ready` fields used to justify whether tagging is allowed. Preserve the nested `git.entries`, `git.issue_code`, and `git.remediation` values in the release record when the checkout is still dirty, and preserve the nested `docker.cli_path`, `docker.daemon_error`, `docker.issue_code`, `docker.remediation`, `docker.current_user`, `docker.user_groups`, `docker.daemon_target`, `docker.socket_path`, `docker.socket_owner`, `docker.socket_group`, `docker.socket_mode`, and `docker.user_in_socket_group` values when Docker is the remaining blocker.
 
 If you prefer Make wrappers during release prep, the repo exposes one-step aliases for the same helper surface: `make release-readiness`, `make release-evidence`, `make smoke-docs`, `make smoke-cli`, `make smoke-local`, `make smoke-docker`, and `make probe-docker`.
 
@@ -86,9 +86,17 @@ Git entries: <git.entries field from labos release readiness>
 Git issue code: <git.issue_code field from labos release readiness>
 Git remediation: <git.remediation field from labos release readiness>
 Docker CLI path: <docker.cli_path field from labos release readiness>
+Docker current user: <docker.current_user field from labos release readiness>
 Docker daemon error: <docker.daemon_error field from labos release readiness>
+Docker daemon target: <docker.daemon_target field from labos release readiness>
 Docker issue code: <docker.issue_code field from labos release readiness>
 Docker remediation: <docker.remediation field from labos release readiness>
+Docker socket path: <docker.socket_path field from labos release readiness>
+Docker socket owner: <docker.socket_owner field from labos release readiness>
+Docker socket group: <docker.socket_group field from labos release readiness>
+Docker socket mode: <docker.socket_mode field from labos release readiness>
+Docker user groups: <docker.user_groups field from labos release readiness>
+Docker user in socket group: <docker.user_in_socket_group field from labos release readiness>
 Tag ready: <tag_ready field from labos release readiness>
 Honesty boundary confirmed: yes/no
 ```
