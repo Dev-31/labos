@@ -21,6 +21,7 @@ All notable changes to LabOS will be documented in this file.
 - Release-prep tooling now also includes `labos release readiness`, which reports the current Git/Docker blockers before attempting the remaining `v0.1.0` gate checks.
 - Release-prep tooling now also includes `labos release evidence`, which emits a machine-readable evidence template with the current commit SHA, verification commands, docs surface, and current Docker blocker detail.
 - Release-prep tooling now also includes `labos release smoke-cli` and `make smoke-cli`, which capture one JSON proof for the representative CLI help/profile/create/list/get/destroy flow against a live API by invoking the real CLI commands instead of shortcutting through internal helpers.
+- Release smoke commands now perform best-effort cleanup of their temporary lab records if a later validation step fails after creation, reducing false leftover metadata during release rehearsals.
 
 ### Honesty boundary
 - LabOS `v0.1.0` is the **public core** release, not a promise of full runtime orchestration.

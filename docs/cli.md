@@ -94,9 +94,9 @@ labos scheduler dispatch-next
 
 `evidence` emits a machine-readable version of the release-checklist evidence template. It includes the current commit SHA, the standard verification commands, the docs surface to re-read before tagging, and the current Docker blocker detail so release notes or issue templates can be pre-filled honestly.
 
-`smoke-docs` exercises the documented release smoke flow against a live API: `GET /health`, `GET /profiles`, `POST /labs`, `GET /labs`, and `DELETE /labs/<id>`. It emits one JSON summary so operators can capture evidence for the docs/API release gate without manually stitching together multiple commands.
+`smoke-docs` exercises the documented release smoke flow against a live API: `GET /health`, `GET /profiles`, `POST /labs`, `GET /labs`, and `DELETE /labs/<id>`. It emits one JSON summary so operators can capture evidence for the docs/API release gate without manually stitching together multiple commands. If the validation fails after the temporary lab is created, the command still attempts cleanup before returning the error.
 
-`smoke-cli` captures the representative CLI release proof: it verifies the top-level help surface is present, then invokes the actual `labos profiles list`, `labos labs create`, `labos labs list`, `labos labs get`, and `labos labs destroy` commands against the live API. The output is one JSON summary suitable for the checklist's CLI-smoke evidence slot.
+`smoke-cli` captures the representative CLI release proof: it verifies the top-level help surface is present, then invokes the actual `labos profiles list`, `labos labs create`, `labos labs list`, `labos labs get`, and `labos labs destroy` commands against the live API. The output is one JSON summary suitable for the checklist's CLI-smoke evidence slot. If a later validation command fails after lab creation, the command still attempts cleanup before returning the failure.
 
 ### `labos runtime`
 - `probe-docker`

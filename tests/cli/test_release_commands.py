@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import typer
 from typer.testing import CliRunner
 
-from labos.cli.main import app
+from labos.cli.main import DEFAULT_API_URL, app
 from labos.runtimes.docker_probe import DockerEnvironmentProbe
 
 runner = CliRunner()
@@ -193,6 +194,53 @@ def test_release_smoke_docs_runs_health_profile_create_list_and_destroy(monkeypa
     ]
 
 
+def test_release_smoke_docs_destroys_created_lab_when_later_step_fails(monkeypatch) -> None:
+    calls: list[tuple[str, str, str, dict[str, Any] | None]] = []
+
+    def fake_request_json(
+        *,
+        api_url: str,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+    ) -> Any:
+        calls.append((api_url, method, path, payload))
+        if (method, path) == ("GET", "/health"):
+            return {"status": "ok"}
+        if (method, path) == ("GET", "/profiles"):
+            return [{"name": "safe-dev"}]
+        if (method, path) == ("POST", "/labs"):
+            return {"id": "lab-1", "state": "approved", "profile_name": "safe-dev"}
+        if (method, path) == ("GET", "/labs"):
+            raise typer.Exit(code=1)
+        if (method, path) == ("DELETE", "/labs/lab-1"):
+            return {"id": "lab-1", "state": "destroyed"}
+        raise AssertionError(f"unexpected request: {(method, path, payload)}")
+
+    monkeypatch.setattr("labos.cli.main._request_json", fake_request_json)
+
+    result = runner.invoke(app, ["release", "smoke-docs"])
+
+    assert result.exit_code == 1
+    assert calls == [
+        (DEFAULT_API_URL, "GET", "/health", None),
+        (DEFAULT_API_URL, "GET", "/profiles", None),
+        (
+            DEFAULT_API_URL,
+            "POST",
+            "/labs",
+            {
+                "profile_name": "safe-dev",
+                "requester_type": "human",
+                "base_snapshot_id": None,
+                "metadata": {"source": "release-smoke-docs"},
+            },
+        ),
+        (DEFAULT_API_URL, "GET", "/labs", None),
+        (DEFAULT_API_URL, "DELETE", "/labs/lab-1", None),
+    ]
+
+
 def test_release_smoke_cli_validates_help_and_representative_commands(monkeypatch) -> None:
     calls: list[tuple[list[str], dict[str, str] | None]] = []
 
@@ -278,4 +326,58 @@ def test_release_smoke_cli_validates_help_and_representative_commands(monkeypatc
         (["labs", "list"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
         (["labs", "get", "lab-2"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
         (["labs", "destroy", "lab-2"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
+    ]
+
+
+def test_release_smoke_cli_destroys_created_lab_when_later_step_fails(monkeypatch) -> None:
+    calls: list[tuple[list[str], dict[str, str] | None]] = []
+
+    def fake_run_cli_command(
+        args: list[str],
+        *,
+        env_overrides: dict[str, str] | None = None,
+    ) -> str:
+        calls.append((args, env_overrides))
+        if args == ["--help"]:
+            return "Usage: labos [OPTIONS] COMMAND [ARGS]...\n\n  LabOS operator CLI\n"
+        if args == ["profiles", "list"]:
+            return json.dumps([{"name": "safe-dev"}])
+        if args == [
+            "labs",
+            "create",
+            "safe-dev",
+            "--requester-type",
+            "human",
+            "--metadata",
+            '{"source": "release-smoke-cli"}',
+        ]:
+            return json.dumps({"id": "lab-2", "state": "approved", "profile_name": "safe-dev"})
+        if args == ["labs", "list"]:
+            raise typer.Exit(code=1)
+        if args == ["labs", "destroy", "lab-2"]:
+            return json.dumps({"id": "lab-2", "state": "destroyed"})
+        raise AssertionError(f"unexpected CLI command: {args}")
+
+    monkeypatch.setattr("labos.cli.main._run_cli_command", fake_run_cli_command)
+
+    result = runner.invoke(app, ["release", "smoke-cli"])
+
+    assert result.exit_code == 1
+    assert calls == [
+        (["--help"], {"LABOS_API_URL": DEFAULT_API_URL}),
+        (["profiles", "list"], {"LABOS_API_URL": DEFAULT_API_URL}),
+        (
+            [
+                "labs",
+                "create",
+                "safe-dev",
+                "--requester-type",
+                "human",
+                "--metadata",
+                '{"source": "release-smoke-cli"}',
+            ],
+            {"LABOS_API_URL": DEFAULT_API_URL},
+        ),
+        (["labs", "list"], {"LABOS_API_URL": DEFAULT_API_URL}),
+        (["labs", "destroy", "lab-2"], {"LABOS_API_URL": DEFAULT_API_URL}),
     ]

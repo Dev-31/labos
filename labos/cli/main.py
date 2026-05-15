@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import suppress
 from typing import Any
 
 import httpx
@@ -139,6 +140,26 @@ def _run_cli_json_command(
         raise typer.Exit(code=1) from exc
 
 
+def _best_effort_destroy_lab_via_api(*, api_url: str, lab_id: str) -> dict[str, Any] | None:
+    with suppress(Exception):
+        result = _request_json(api_url=api_url, method="DELETE", path=f"/labs/{lab_id}")
+        if isinstance(result, dict):
+            return result
+    return None
+
+
+def _best_effort_destroy_lab_via_cli(
+    *,
+    env_overrides: dict[str, str],
+    lab_id: str,
+) -> dict[str, Any] | None:
+    with suppress(Exception):
+        result = _run_cli_json_command(["labs", "destroy", lab_id], env_overrides=env_overrides)
+        if isinstance(result, dict):
+            return result
+    return None
+
+
 @app.command()
 def version() -> None:
     """Print the LabOS CLI version."""
@@ -252,25 +273,31 @@ def release_smoke_docs(
     ),
 ) -> None:
     """Exercise the documented health/profile/create/list/destroy flow against a live API."""
-    health = _request_json(api_url=api_url, method="GET", path="/health")
-    profiles = _request_json(api_url=api_url, method="GET", path="/profiles")
-    created_lab = _request_json(
-        api_url=api_url,
-        method="POST",
-        path="/labs",
-        payload={
-            "profile_name": profile,
-            "requester_type": requester_type,
-            "base_snapshot_id": None,
-            "metadata": {"source": "release-smoke-docs"},
-        },
-    )
-    labs = _request_json(api_url=api_url, method="GET", path="/labs")
-    destroyed_lab = _request_json(
-        api_url=api_url,
-        method="DELETE",
-        path=f"/labs/{created_lab['id']}",
-    )
+    created_lab: dict[str, Any] | None = None
+    try:
+        health = _request_json(api_url=api_url, method="GET", path="/health")
+        profiles = _request_json(api_url=api_url, method="GET", path="/profiles")
+        created_lab = _request_json(
+            api_url=api_url,
+            method="POST",
+            path="/labs",
+            payload={
+                "profile_name": profile,
+                "requester_type": requester_type,
+                "base_snapshot_id": None,
+                "metadata": {"source": "release-smoke-docs"},
+            },
+        )
+        labs = _request_json(api_url=api_url, method="GET", path="/labs")
+        destroyed_lab = _request_json(
+            api_url=api_url,
+            method="DELETE",
+            path=f"/labs/{created_lab['id']}",
+        )
+    except BaseException:
+        if isinstance(created_lab, dict) and "id" in created_lab:
+            _best_effort_destroy_lab_via_api(api_url=api_url, lab_id=str(created_lab["id"]))
+        raise
 
     _emit_json(
         {
@@ -301,30 +328,39 @@ def release_smoke_cli(
 ) -> None:
     """Exercise representative CLI commands against a live API and capture one JSON proof."""
     env_overrides = {"LABOS_API_URL": _normalize_api_url(api_url)}
-    help_output = _run_cli_command(["--help"], env_overrides=env_overrides)
-    help_verified = "LabOS operator CLI" in help_output
-    profiles = _run_cli_json_command(["profiles", "list"], env_overrides=env_overrides)
-    created_lab = _run_cli_json_command(
-        [
-            "labs",
-            "create",
-            profile,
-            "--requester-type",
-            requester_type,
-            "--metadata",
-            json.dumps({"source": "release-smoke-cli"}),
-        ],
-        env_overrides=env_overrides,
-    )
-    labs = _run_cli_json_command(["labs", "list"], env_overrides=env_overrides)
-    retrieved_lab = _run_cli_json_command(
-        ["labs", "get", created_lab["id"]],
-        env_overrides=env_overrides,
-    )
-    destroyed_lab = _run_cli_json_command(
-        ["labs", "destroy", created_lab["id"]],
-        env_overrides=env_overrides,
-    )
+    created_lab: dict[str, Any] | None = None
+    try:
+        help_output = _run_cli_command(["--help"], env_overrides=env_overrides)
+        help_verified = "LabOS operator CLI" in help_output
+        profiles = _run_cli_json_command(["profiles", "list"], env_overrides=env_overrides)
+        created_lab = _run_cli_json_command(
+            [
+                "labs",
+                "create",
+                profile,
+                "--requester-type",
+                requester_type,
+                "--metadata",
+                json.dumps({"source": "release-smoke-cli"}),
+            ],
+            env_overrides=env_overrides,
+        )
+        labs = _run_cli_json_command(["labs", "list"], env_overrides=env_overrides)
+        retrieved_lab = _run_cli_json_command(
+            ["labs", "get", created_lab["id"]],
+            env_overrides=env_overrides,
+        )
+        destroyed_lab = _run_cli_json_command(
+            ["labs", "destroy", created_lab["id"]],
+            env_overrides=env_overrides,
+        )
+    except BaseException:
+        if isinstance(created_lab, dict) and "id" in created_lab:
+            _best_effort_destroy_lab_via_cli(
+                env_overrides=env_overrides,
+                lab_id=str(created_lab["id"]),
+            )
+        raise
 
     _emit_json(
         {
