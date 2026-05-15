@@ -2,7 +2,7 @@
 
 All notable changes to LabOS will be documented in this file.
 
-## v0.1.0 (unreleased)
+## v0.1.0 - 2026-05-15
 
 ### Added
 - Public core control plane built around FastAPI, Typer, SQLAlchemy, Alembic, and policy-first domain models.

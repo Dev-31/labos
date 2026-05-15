@@ -767,11 +767,11 @@ You can tag `v0.1.0` without embarrassment.
 - [x] Run lint.
 - [x] Run type checks.
 - [x] Test install from clean machine/container.
-- [ ] Test local Docker integration from scratch.
+- [x] Test local Docker integration from scratch.
 - [x] Validate docs commands actually work.
 - [x] Add release checklist.
 - [x] Add changelog or release notes.
-- [ ] Tag first release.
+- [x] Tag first release.
 
 ---
 
