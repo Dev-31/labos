@@ -88,6 +88,11 @@ make lint
 make typecheck
 make check
 make run-api
+make release-readiness
+make release-evidence
+make smoke-docs
+make smoke-cli
+make smoke-docker
 ```
 
 ### Test focus areas
@@ -110,6 +115,17 @@ labos release smoke-cli
 labos release smoke-docker
 labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
+```
+
+Equivalent Make targets are available for the release-prep helper surface:
+
+```bash
+make release-readiness
+make release-evidence
+make smoke-docs
+make smoke-cli
+make smoke-docker
+make probe-docker
 ```
 
 Run `labos release readiness` first to see the current release blockers in one machine-readable payload. It reports whether the checkout is clean and whether the optional Docker smoke can run on the current host.

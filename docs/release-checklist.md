@@ -22,6 +22,12 @@ labos release smoke-cli
 labos release smoke-docker
 labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
+make release-readiness
+make release-evidence
+make smoke-docs
+make smoke-cli
+make smoke-docker
+make probe-docker
 ```
 
 Record the command outputs or CI links used for the release decision.
@@ -29,6 +35,8 @@ Record the command outputs or CI links used for the release decision.
 Run `labos release readiness` before the Docker-specific checks so the current blockers are explicit in one JSON payload.
 
 Run `labos release evidence` when you want the evidence-template fields pre-filled with the current commit SHA, standard verification commands, docs surface, and current Docker readiness detail.
+
+If you prefer Make wrappers during release prep, the repo exposes one-step aliases for the same helper surface: `make release-readiness`, `make release-evidence`, `make smoke-docs`, `make smoke-cli`, `make smoke-docker`, and `make probe-docker`.
 
 Use `labos release smoke-docker` when you want one JSON proof for the runtime-side release gate. It first reports the Docker probe result and only runs the real-Docker pytest smoke when the host is actually ready.
 
