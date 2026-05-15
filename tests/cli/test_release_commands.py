@@ -68,6 +68,56 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
     }
 
 
+def test_release_evidence_reports_machine_readable_release_template(monkeypatch) -> None:
+    monkeypatch.setattr("labos.cli.main._git_status_is_clean", lambda: False)
+    monkeypatch.setattr("labos.cli.main._git_head_sha", lambda: "abc123def456")
+    monkeypatch.setattr(
+        "labos.cli.main.probe_docker_environment",
+        lambda: DockerEnvironmentProbe(
+            cli_present=False,
+            daemon_reachable=False,
+            detail="docker CLI is not installed or not on PATH",
+        ),
+    )
+
+    result = runner.invoke(app, ["release", "evidence"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "blockers": [
+            "git working tree is not clean",
+            "docker CLI is not installed or not on PATH",
+        ],
+        "commit": "abc123def456",
+        "docker": {
+            "cli_present": False,
+            "daemon_reachable": False,
+            "detail": "docker CLI is not installed or not on PATH",
+            "ready": False,
+        },
+        "docs_validated": [
+            "README.md",
+            "docs/api.md",
+            "docs/cli.md",
+            "docs/release-checklist.md",
+        ],
+        "git_clean": False,
+        "honesty_boundary_confirmed": False,
+        "template": {
+            "API smoke": "labos release smoke-docs",
+            "CLI smoke": "labos release smoke-cli",
+            "Commit": "abc123def456",
+            "Docker integration notes": "docker CLI is not installed or not on PATH",
+            "Docs validated": "README.md, docs/api.md, docs/cli.md, docs/release-checklist.md",
+            "Honesty boundary confirmed": "no",
+            "Install smoke": "uv sync --extra dev",
+            "Lint": "uv run ruff check .",
+            "Tests": "uv run pytest -q",
+            "Types": "uv run mypy",
+        },
+    }
+
+
 def test_release_smoke_docs_runs_health_profile_create_list_and_destroy(monkeypatch) -> None:
     calls: list[tuple[str, str, str, dict[str, Any] | None]] = []
 

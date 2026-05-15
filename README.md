@@ -104,6 +104,7 @@ When a real local Docker daemon is available, run:
 
 ```bash
 labos release readiness
+labos release evidence
 labos release smoke-docs
 labos release smoke-cli
 labos runtime probe-docker
@@ -111,6 +112,8 @@ uv run pytest -q tests/integration/test_docker_runtime_smoke.py
 ```
 
 Run `labos release readiness` first to see the current release blockers in one machine-readable payload. It reports whether the checkout is clean and whether the optional Docker smoke can run on the current host.
+
+Run `labos release evidence` when you want the release-checklist evidence template pre-filled with the current commit SHA, the standard verification commands, the docs surface to re-read, and the current Docker blocker detail.
 
 Then run `labos release smoke-docs` against a live API to exercise the documented health/profile/create/list/destroy flow in one command. It creates a temporary governed lab record with a valid control-plane requester type and destroys it again so the release operator can capture one JSON proof for the docs/API smoke gate.
 

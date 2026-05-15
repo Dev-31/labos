@@ -55,6 +55,18 @@ def _git_status_is_clean() -> bool:
     return result.returncode == 0 and result.stdout.strip() == ""
 
 
+def _git_head_sha() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
 def _request_json(
     *,
     api_url: str,
@@ -175,6 +187,55 @@ def release_readiness() -> None:
     )
     if blockers:
         raise typer.Exit(code=1)
+
+
+@release_app.command("evidence")
+def release_evidence() -> None:
+    """Emit a machine-readable release evidence template with current blockers."""
+    git_clean = _git_status_is_clean()
+    docker_probe = probe_docker_environment()
+    blockers: list[str] = []
+    if not git_clean:
+        blockers.append("git working tree is not clean")
+    if not docker_probe.ready:
+        blockers.append(docker_probe.detail)
+
+    docs_validated = [
+        "README.md",
+        "docs/api.md",
+        "docs/cli.md",
+        "docs/release-checklist.md",
+    ]
+    commit = _git_head_sha()
+    honesty_boundary_confirmed = git_clean and docker_probe.ready
+
+    _emit_json(
+        {
+            "blockers": blockers,
+            "commit": commit,
+            "docker": {
+                "cli_present": docker_probe.cli_present,
+                "daemon_reachable": docker_probe.daemon_reachable,
+                "detail": docker_probe.detail,
+                "ready": docker_probe.ready,
+            },
+            "docs_validated": docs_validated,
+            "git_clean": git_clean,
+            "honesty_boundary_confirmed": honesty_boundary_confirmed,
+            "template": {
+                "API smoke": "labos release smoke-docs",
+                "CLI smoke": "labos release smoke-cli",
+                "Commit": commit,
+                "Docker integration notes": docker_probe.detail,
+                "Docs validated": ", ".join(docs_validated),
+                "Honesty boundary confirmed": "yes" if honesty_boundary_confirmed else "no",
+                "Install smoke": "uv sync --extra dev",
+                "Lint": "uv run ruff check .",
+                "Tests": "uv run pytest -q",
+                "Types": "uv run mypy",
+            },
+        }
+    )
 
 
 @release_app.command("smoke-docs")
