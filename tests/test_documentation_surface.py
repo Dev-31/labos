@@ -72,6 +72,9 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "next_action" in release_checklist
     assert "pending_steps" in release_checklist
     assert "tag_ready" in release_checklist
+    assert "git entries" in release_checklist.lower()
+    assert "git issue code" in release_checklist.lower()
+    assert "git remediation" in release_checklist.lower()
     assert "cli_path" in release_checklist
     assert "daemon_error" in release_checklist
     assert "issue_code" in release_checklist
@@ -93,6 +96,9 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "next_action" in readme
     assert "pending_steps" in readme
     assert "tag_ready" in readme
+    assert "git entries" in readme.lower()
+    assert "git issue code" in readme.lower()
+    assert "git remediation" in readme.lower()
     assert "cli_path" in readme
     assert "daemon_error" in readme
     assert "issue_code" in readme
@@ -110,6 +116,9 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "next_action" in cli_guide
     assert "pending_steps" in cli_guide
     assert "tag_ready" in cli_guide
+    assert "git entries" in cli_guide.lower()
+    assert "git issue code" in cli_guide.lower()
+    assert "git remediation" in cli_guide.lower()
     assert "cli_path" in cli_guide
     assert "daemon_error" in cli_guide
     assert "issue_code" in cli_guide

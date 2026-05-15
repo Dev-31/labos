@@ -13,7 +13,16 @@ runner = CliRunner()
 
 
 def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
-    monkeypatch.setattr("labos.cli.main._git_status_is_clean", lambda: True)
+    monkeypatch.setattr(
+        "labos.cli.main._git_status_payload",
+        lambda: {
+            "clean": True,
+            "detail": "git working tree is clean",
+            "entries": [],
+            "issue_code": "clean",
+            "remediation": "none",
+        },
+    )
     monkeypatch.setattr(
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
@@ -42,6 +51,13 @@ def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
             "remediation": "none",
             "ready": True,
         },
+        "git": {
+            "clean": True,
+            "detail": "git working tree is clean",
+            "entries": [],
+            "issue_code": "clean",
+            "remediation": "none",
+        },
         "git_clean": True,
         "next_action": "tag the verified v0.1.0 release once changelog/release notes are finalized",
         "pending_steps": [
@@ -53,7 +69,16 @@ def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
 
 
 def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
-    monkeypatch.setattr("labos.cli.main._git_status_is_clean", lambda: False)
+    monkeypatch.setattr(
+        "labos.cli.main._git_status_payload",
+        lambda: {
+            "clean": False,
+            "detail": "git working tree is not clean: ?? get-docker.sh",
+            "entries": [{"path": "get-docker.sh", "status": "??"}],
+            "issue_code": "dirty",
+            "remediation": "commit, stash, or delete the reported paths before tagging",
+        },
+    )
     monkeypatch.setattr(
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
@@ -72,7 +97,7 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
     assert result.exit_code == 1
     assert json.loads(result.stdout) == {
         "blockers": [
-            "git working tree is not clean",
+            "git working tree is not clean: ?? get-docker.sh",
             "docker CLI is not installed or not on PATH",
         ],
         "docker": {
@@ -84,6 +109,13 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
             "issue_code": "cli_missing",
             "remediation": "install Docker CLI and ensure it is available on PATH",
             "ready": False,
+        },
+        "git": {
+            "clean": False,
+            "detail": "git working tree is not clean: ?? get-docker.sh",
+            "entries": [{"path": "get-docker.sh", "status": "??"}],
+            "issue_code": "dirty",
+            "remediation": "commit, stash, or delete the reported paths before tagging",
         },
         "git_clean": False,
         "next_action": "clean the git working tree, then re-run labos release readiness",
@@ -98,7 +130,16 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
 
 
 def test_release_evidence_reports_machine_readable_release_template(monkeypatch) -> None:
-    monkeypatch.setattr("labos.cli.main._git_status_is_clean", lambda: False)
+    monkeypatch.setattr(
+        "labos.cli.main._git_status_payload",
+        lambda: {
+            "clean": False,
+            "detail": "git working tree is not clean: ?? get-docker.sh",
+            "entries": [{"path": "get-docker.sh", "status": "??"}],
+            "issue_code": "dirty",
+            "remediation": "commit, stash, or delete the reported paths before tagging",
+        },
+    )
     monkeypatch.setattr("labos.cli.main._git_head_sha", lambda: "abc123def456")
     monkeypatch.setattr(
         "labos.cli.main.probe_docker_environment",
@@ -118,7 +159,7 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
         "blockers": [
-            "git working tree is not clean",
+            "git working tree is not clean: ?? get-docker.sh",
             "docker CLI is not installed or not on PATH",
         ],
         "commit": "abc123def456",
@@ -138,6 +179,13 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
             "docs/cli.md",
             "docs/release-checklist.md",
         ],
+        "git": {
+            "clean": False,
+            "detail": "git working tree is not clean: ?? get-docker.sh",
+            "entries": [{"path": "get-docker.sh", "status": "??"}],
+            "issue_code": "dirty",
+            "remediation": "commit, stash, or delete the reported paths before tagging",
+        },
         "git_clean": False,
         "honesty_boundary_confirmed": False,
         "next_action": "clean the git working tree, then re-run labos release readiness",
@@ -153,6 +201,10 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
             "CLI smoke": "labos release smoke-cli",
             "Docker smoke": "labos release smoke-docker",
             "Commit": "abc123def456",
+            "Git detail": "git working tree is not clean: ?? get-docker.sh",
+            "Git entries": "?? get-docker.sh",
+            "Git issue code": "dirty",
+            "Git remediation": "commit, stash, or delete the reported paths before tagging",
             "Docker CLI path": "unknown",
             "Docker daemon error": "n/a",
             "Docker issue code": "cli_missing",

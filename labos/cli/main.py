@@ -77,6 +77,47 @@ def _git_status_is_clean() -> bool:
     return result.returncode == 0 and result.stdout.strip() == ""
 
 
+def _git_status_entries() -> list[dict[str, str]]:
+    result = subprocess.run(
+        ["git", "status", "--short"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return []
+
+    entries: list[dict[str, str]] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        status = line[:2]
+        path = line[3:] if len(line) > 3 else ""
+        entries.append({"path": path, "status": status})
+    return entries
+
+
+def _git_status_payload() -> dict[str, Any]:
+    entries = _git_status_entries()
+    if not entries:
+        return {
+            "clean": True,
+            "detail": "git working tree is clean",
+            "entries": [],
+            "issue_code": "clean",
+            "remediation": "none",
+        }
+
+    rendered_entries = ", ".join(f"{entry['status']} {entry['path']}" for entry in entries)
+    return {
+        "clean": False,
+        "detail": f"git working tree is not clean: {rendered_entries}",
+        "entries": entries,
+        "issue_code": "dirty",
+        "remediation": "commit, stash, or delete the reported paths before tagging",
+    }
+
+
 def _git_head_sha() -> str:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -111,17 +152,19 @@ def _release_next_action(*, git_clean: bool, docker_probe: Any) -> str:
 
 
 def _release_status_payload(*, include_commit: bool = False) -> dict[str, Any]:
-    git_clean = _git_status_is_clean()
+    git = _git_status_payload()
+    git_clean = bool(git["clean"])
     docker_probe = probe_docker_environment()
     blockers: list[str] = []
     if not git_clean:
-        blockers.append("git working tree is not clean")
+        blockers.append(str(git["detail"]))
     if not docker_probe.ready:
         blockers.append(docker_probe.detail)
 
     payload: dict[str, Any] = {
         "blockers": blockers,
         "docker": _docker_probe_payload(docker_probe),
+        "git": git,
         "git_clean": git_clean,
         "next_action": _release_next_action(
             git_clean=git_clean,
@@ -403,6 +446,13 @@ def release_evidence() -> None:
                 "CLI smoke": "labos release smoke-cli",
                 "Docker smoke": "labos release smoke-docker",
                 "Commit": status["commit"],
+                "Git detail": str(status["git"]["detail"]),
+                "Git entries": "; ".join(
+                    f"{entry['status']} {entry['path']}" for entry in status["git"]["entries"]
+                )
+                or "clean",
+                "Git issue code": str(status["git"]["issue_code"]),
+                "Git remediation": str(status["git"]["remediation"]),
                 "Docker CLI path": status["docker"]["cli_path"] or "unknown",
                 "Docker daemon error": status["docker"]["daemon_error"] or "n/a",
                 "Docker issue code": status["docker"]["issue_code"],
