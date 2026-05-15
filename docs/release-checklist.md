@@ -42,7 +42,7 @@ If you prefer Make wrappers during release prep, the repo exposes one-step alias
 
 Use `labos release smoke-local` when you want one bounded command to bootstrap a fresh local SQLite-backed API, run the docs and CLI release smokes against that temporary server, and capture the current Docker smoke payload in the same JSON record.
 
-Use `labos release smoke-docker` when you want one JSON proof for the runtime-side release gate. It first reports the Docker probe result and only runs the real-Docker pytest smoke when the host is actually ready.
+Use `labos release smoke-docker` when you want one JSON proof for the runtime-side release gate. It first reports the Docker probe result and only runs the real-Docker pytest smoke when the host is actually ready. The helper strips any inherited `VIRTUAL_ENV` before spawning that nested `uv run` smoke so scheduled evidence collection does not pick up unrelated virtualenv warnings.
 
 If the host does not have a reachable Docker daemon, do not check off the Docker integration gate. Capture the exact `labos runtime probe-docker` failure detail (or the matching `labos release smoke-docker` JSON payload) and leave release tagging blocked until the smoke test passes on a real local Docker setup.
 

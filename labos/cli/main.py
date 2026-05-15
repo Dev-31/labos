@@ -226,20 +226,25 @@ def _parse_json_object(option_name: str, raw_value: str | None) -> dict[str, Any
     return parsed
 
 
+def _subprocess_env(*, env_overrides: dict[str, str] | None = None) -> dict[str, str]:
+    env = os.environ.copy()
+    env.pop("VIRTUAL_ENV", None)
+    if env_overrides:
+        env.update(env_overrides)
+    return env
+
+
 def _run_cli_command(
     args: list[str],
     *,
     env_overrides: dict[str, str] | None = None,
 ) -> str:
-    env = os.environ.copy()
-    if env_overrides:
-        env.update(env_overrides)
     result = subprocess.run(
         [sys.executable, "-m", "labos.cli.main", *args],
         check=False,
         capture_output=True,
         text=True,
-        env=env,
+        env=_subprocess_env(env_overrides=env_overrides),
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
@@ -269,6 +274,7 @@ def _run_external_command(args: list[str]) -> str:
         check=False,
         capture_output=True,
         text=True,
+        env=_subprocess_env(),
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
@@ -319,8 +325,6 @@ def _start_local_api_server(
         typer.echo(f"release smoke local API URL must include a port: {api_url}", err=True)
         raise typer.Exit(code=1)
 
-    env = os.environ.copy()
-    env.update(env_overrides)
     return subprocess.Popen(
         [
             sys.executable,
@@ -335,7 +339,7 @@ def _start_local_api_server(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env=env,
+        env=_subprocess_env(env_overrides=env_overrides),
     )
 
 

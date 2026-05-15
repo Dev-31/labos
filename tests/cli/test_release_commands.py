@@ -12,6 +12,37 @@ from labos.runtimes.docker_probe import DockerEnvironmentProbe
 runner = CliRunner()
 
 
+def test_run_external_command_strips_virtual_env_before_invoking_uv(monkeypatch) -> None:
+    monkeypatch.setenv("VIRTUAL_ENV", "/tmp/foreign-venv")
+    captured: dict[str, Any] = {}
+
+    def fake_run(
+        args: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+        env: dict[str, str],
+    ) -> Any:
+        captured["args"] = args
+        captured["env"] = env
+        return type(
+            "CompletedProcess",
+            (),
+            {"returncode": 0, "stdout": "ok\n", "stderr": ""},
+        )()
+
+    monkeypatch.setattr("labos.cli.main.subprocess.run", fake_run)
+
+    from labos.cli.main import _run_external_command
+
+    output = _run_external_command(["uv", "run", "pytest", "-q"])
+
+    assert output == "ok\n"
+    assert captured["args"] == ["uv", "run", "pytest", "-q"]
+    assert "VIRTUAL_ENV" not in captured["env"]
+
+
 def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
     monkeypatch.setattr(
         "labos.cli.main._git_status_payload",

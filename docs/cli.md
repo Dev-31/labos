@@ -104,7 +104,7 @@ labos scheduler dispatch-next
 
 `smoke-local` bootstraps a temporary local release-smoke environment for operator rehearsals. It provisions a temp SQLite database plus managed storage root, starts the API on a free localhost port, runs `smoke-docs` and `smoke-cli` against that local API, then appends the `smoke-docker` payload into one JSON result. It exits non-zero when Docker is not actually ready so the release report stays honest about the remaining runtime gate.
 
-`smoke-docker` captures the runtime-side release proof. It reuses the Docker readiness probe, emits that probe result in JSON, and only runs `uv run pytest -q tests/integration/test_docker_runtime_smoke.py` when the host is actually ready. If Docker is missing or unreachable, it exits non-zero with `output: null` instead of pretending the runtime gate passed.
+`smoke-docker` captures the runtime-side release proof. It reuses the Docker readiness probe, emits that probe result in JSON, and only runs `uv run pytest -q tests/integration/test_docker_runtime_smoke.py` when the host is actually ready. If Docker is missing or unreachable, it exits non-zero with `output: null` instead of pretending the runtime gate passed. The helper strips any inherited `VIRTUAL_ENV` before launching that nested `uv run` command so cron/CI output stays machine-readable.
 
 For operator convenience during Phase 18 release prep, the repo also exposes matching Make helpers: `make release-readiness`, `make release-evidence`, `make smoke-docs`, `make smoke-cli`, `make smoke-local`, `make smoke-docker`, and `make probe-docker`.
 

@@ -28,6 +28,7 @@ All notable changes to LabOS will be documented in this file.
 - Release smoke commands now perform best-effort cleanup of their temporary lab records if a later validation step fails after creation, reducing false leftover metadata during release rehearsals.
 - Docker readiness payloads now classify blockers with `issue_code` and `remediation`, making permission-denied daemon failures distinct from missing CLI or generic daemon-unreachable cases across the release helper surface.
 - Git readiness payloads now include exact dirty-tree `entries` plus `issue_code` and `remediation`, so `labos release readiness` / `labos release evidence` can point directly at leftover files blocking a clean v0.1 release tag.
+- Release helper subprocesses now scrub inherited `VIRTUAL_ENV` values before spawning nested `uv run ...` checks, preventing unrelated virtualenv warnings from corrupting machine-readable smoke output in cron/CI environments.
 
 ### Honesty boundary
 - LabOS `v0.1.0` is the **public core** release, not a promise of full runtime orchestration.
