@@ -1,7 +1,7 @@
 PYTHON ?= python3
 UV ?= uv
 
-.PHONY: install test lint typecheck check run-api probe-docker smoke-docker
+.PHONY: install test lint typecheck check run-api smoke-docs probe-docker smoke-docker
 
 install:
 	$(UV) sync --extra dev
@@ -19,6 +19,9 @@ check: lint typecheck test
 
 run-api:
 	$(UV) run uvicorn labos.api.app:app --reload
+
+smoke-docs:
+	$(UV) run labos release smoke-docs
 
 probe-docker:
 	$(UV) run labos runtime probe-docker

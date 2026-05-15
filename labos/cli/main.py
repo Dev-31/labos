@@ -138,6 +138,54 @@ def release_readiness() -> None:
         raise typer.Exit(code=1)
 
 
+@release_app.command("smoke-docs")
+def release_smoke_docs(
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+    profile: str = typer.Option("safe-dev", help="Profile to use for the release docs smoke lab."),
+    requester_type: str = typer.Option(
+        "human",
+        help="Requester type recorded for the temporary release smoke lab.",
+    ),
+) -> None:
+    """Exercise the documented health/profile/create/list/destroy flow against a live API."""
+    health = _request_json(api_url=api_url, method="GET", path="/health")
+    profiles = _request_json(api_url=api_url, method="GET", path="/profiles")
+    created_lab = _request_json(
+        api_url=api_url,
+        method="POST",
+        path="/labs",
+        payload={
+            "profile_name": profile,
+            "requester_type": requester_type,
+            "base_snapshot_id": None,
+            "metadata": {"source": "release-smoke-docs"},
+        },
+    )
+    labs = _request_json(api_url=api_url, method="GET", path="/labs")
+    destroyed_lab = _request_json(
+        api_url=api_url,
+        method="DELETE",
+        path=f"/labs/{created_lab['id']}",
+    )
+
+    _emit_json(
+        {
+            "api_url": _normalize_api_url(api_url),
+            "created_lab": created_lab,
+            "destroyed_lab": destroyed_lab,
+            "health": health,
+            "labs_list_count": len(labs),
+            "profile_names": [item["name"] for item in profiles],
+            "profile_requested": profile,
+            "requester_type": requester_type,
+        }
+    )
+
+
 @profiles_app.command("list")
 def profiles_list(
     api_url: str = typer.Option(
