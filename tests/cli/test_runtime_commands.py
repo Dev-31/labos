@@ -15,7 +15,9 @@ def test_runtime_probe_docker_reports_ready_environment(monkeypatch) -> None:
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
             cli_present=True,
+            cli_path="/usr/bin/docker",
             daemon_reachable=True,
+            daemon_error=None,
             detail="docker CLI and daemon are available",
         ),
     )
@@ -25,7 +27,9 @@ def test_runtime_probe_docker_reports_ready_environment(monkeypatch) -> None:
     assert result.exit_code == 0
     assert json.loads(result.stdout) == {
         "cli_present": True,
+        "cli_path": "/usr/bin/docker",
         "daemon_reachable": True,
+        "daemon_error": None,
         "detail": "docker CLI and daemon are available",
         "ready": True,
     }
@@ -36,7 +40,9 @@ def test_runtime_probe_docker_fails_when_environment_is_not_ready(monkeypatch) -
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
             cli_present=False,
+            cli_path=None,
             daemon_reachable=False,
+            daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
         ),
     )
@@ -46,7 +52,9 @@ def test_runtime_probe_docker_fails_when_environment_is_not_ready(monkeypatch) -
     assert result.exit_code == 1
     assert json.loads(result.stdout) == {
         "cli_present": False,
+        "cli_path": None,
         "daemon_reachable": False,
+        "daemon_error": None,
         "detail": "docker CLI is not installed or not on PATH",
         "ready": False,
     }

@@ -18,7 +18,9 @@ def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
             cli_present=True,
+            cli_path="/usr/bin/docker",
             daemon_reachable=True,
+            daemon_error=None,
             detail="docker CLI and daemon are available",
         ),
     )
@@ -30,7 +32,9 @@ def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
         "blockers": [],
         "docker": {
             "cli_present": True,
+            "cli_path": "/usr/bin/docker",
             "daemon_reachable": True,
+            "daemon_error": None,
             "detail": "docker CLI and daemon are available",
             "ready": True,
         },
@@ -50,7 +54,9 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
             cli_present=False,
+            cli_path=None,
             daemon_reachable=False,
+            daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
         ),
     )
@@ -65,7 +71,9 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
         ],
         "docker": {
             "cli_present": False,
+            "cli_path": None,
             "daemon_reachable": False,
+            "daemon_error": None,
             "detail": "docker CLI is not installed or not on PATH",
             "ready": False,
         },
@@ -88,7 +96,9 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
             cli_present=False,
+            cli_path=None,
             daemon_reachable=False,
+            daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
         ),
     )
@@ -104,7 +114,9 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
         "commit": "abc123def456",
         "docker": {
             "cli_present": False,
+            "cli_path": None,
             "daemon_reachable": False,
+            "daemon_error": None,
             "detail": "docker CLI is not installed or not on PATH",
             "ready": False,
         },
@@ -129,6 +141,8 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
             "CLI smoke": "labos release smoke-cli",
             "Docker smoke": "labos release smoke-docker",
             "Commit": "abc123def456",
+            "Docker CLI path": "unknown",
+            "Docker daemon error": "n/a",
             "Docker integration notes": "docker CLI is not installed or not on PATH",
             "Docs validated": "README.md, docs/api.md, docs/cli.md, docs/release-checklist.md",
             "Honesty boundary confirmed": "no",
@@ -415,7 +429,9 @@ def test_release_smoke_docker_reports_probe_and_pytest_output(monkeypatch) -> No
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
             cli_present=True,
+            cli_path="/usr/bin/docker",
             daemon_reachable=True,
+            daemon_error=None,
             detail="docker CLI and daemon are available",
         ),
     )
@@ -439,7 +455,9 @@ def test_release_smoke_docker_reports_probe_and_pytest_output(monkeypatch) -> No
         "command": "uv run pytest -q tests/integration/test_docker_runtime_smoke.py",
         "docker": {
             "cli_present": True,
+            "cli_path": "/usr/bin/docker",
             "daemon_reachable": True,
+            "daemon_error": None,
             "detail": "docker CLI and daemon are available",
             "ready": True,
         },
@@ -453,7 +471,9 @@ def test_release_smoke_docker_fails_honestly_when_probe_is_not_ready(monkeypatch
         "labos.cli.main.probe_docker_environment",
         lambda: DockerEnvironmentProbe(
             cli_present=False,
+            cli_path=None,
             daemon_reachable=False,
+            daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
         ),
     )
@@ -470,7 +490,9 @@ def test_release_smoke_docker_fails_honestly_when_probe_is_not_ready(monkeypatch
         "command": "uv run pytest -q tests/integration/test_docker_runtime_smoke.py",
         "docker": {
             "cli_present": False,
+            "cli_path": None,
             "daemon_reachable": False,
+            "daemon_error": None,
             "detail": "docker CLI is not installed or not on PATH",
             "ready": False,
         },

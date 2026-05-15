@@ -46,6 +46,17 @@ def _emit_json(payload: Any) -> None:
     typer.echo(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def _docker_probe_payload(probe: Any) -> dict[str, Any]:
+    return {
+        "cli_present": probe.cli_present,
+        "cli_path": probe.cli_path,
+        "daemon_reachable": probe.daemon_reachable,
+        "daemon_error": probe.daemon_error,
+        "detail": probe.detail,
+        "ready": probe.ready,
+    }
+
+
 def _git_status_is_clean() -> bool:
     result = subprocess.run(
         ["git", "status", "--short"],
@@ -100,12 +111,7 @@ def _release_status_payload(*, include_commit: bool = False) -> dict[str, Any]:
 
     payload: dict[str, Any] = {
         "blockers": blockers,
-        "docker": {
-            "cli_present": docker_probe.cli_present,
-            "daemon_reachable": docker_probe.daemon_reachable,
-            "detail": docker_probe.detail,
-            "ready": docker_probe.ready,
-        },
+        "docker": _docker_probe_payload(docker_probe),
         "git_clean": git_clean,
         "next_action": _release_next_action(
             git_clean=git_clean,
@@ -241,14 +247,7 @@ def version() -> None:
 def runtime_probe_docker() -> None:
     """Probe whether the optional local Docker runtime smoke can run on this host."""
     probe = probe_docker_environment()
-    _emit_json(
-        {
-            "cli_present": probe.cli_present,
-            "daemon_reachable": probe.daemon_reachable,
-            "detail": probe.detail,
-            "ready": probe.ready,
-        }
-    )
+    _emit_json(_docker_probe_payload(probe))
     if not probe.ready:
         raise typer.Exit(code=1)
 
@@ -286,6 +285,8 @@ def release_evidence() -> None:
                 "CLI smoke": "labos release smoke-cli",
                 "Docker smoke": "labos release smoke-docker",
                 "Commit": status["commit"],
+                "Docker CLI path": status["docker"]["cli_path"] or "unknown",
+                "Docker daemon error": status["docker"]["daemon_error"] or "n/a",
                 "Docker integration notes": status["docker"]["detail"],
                 "Docs validated": ", ".join(docs_validated),
                 "Honesty boundary confirmed": "yes" if honesty_boundary_confirmed else "no",
@@ -439,12 +440,7 @@ def release_smoke_docker() -> None:
     _emit_json(
         {
             "command": " ".join(command),
-            "docker": {
-                "cli_present": docker_probe.cli_present,
-                "daemon_reachable": docker_probe.daemon_reachable,
-                "detail": docker_probe.detail,
-                "ready": docker_probe.ready,
-            },
+            "docker": _docker_probe_payload(docker_probe),
             "output": output,
             "ready": docker_probe.ready,
         }

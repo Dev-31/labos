@@ -128,9 +128,9 @@ make smoke-docker
 make probe-docker
 ```
 
-Run `labos release readiness` first to see the current release blockers in one machine-readable payload. It reports whether the checkout is clean, whether the optional Docker smoke can run on the current host, and includes `next_action`, `pending_steps`, and `tag_ready` fields so release automation can explain exactly what is still blocking the `v0.1.0` tag.
+Run `labos release readiness` first to see the current release blockers in one machine-readable payload. It reports whether the checkout is clean, whether the optional Docker smoke can run on the current host, and includes `next_action`, `pending_steps`, and `tag_ready` fields so release automation can explain exactly what is still blocking the `v0.1.0` tag. The nested `docker` object also exposes `cli_path` and `daemon_error`, which makes it obvious whether the blocker is a missing Docker binary or a daemon connectivity failure.
 
-Run `labos release evidence` when you want the release-checklist evidence template pre-filled with the current commit SHA, the standard verification commands, the docs surface to re-read, the current Docker blocker detail, and the same `next_action` / `pending_steps` / `tag_ready` release-decision fields.
+Run `labos release evidence` when you want the release-checklist evidence template pre-filled with the current commit SHA, the standard verification commands, the docs surface to re-read, the current Docker blocker detail, and the same `next_action` / `pending_steps` / `tag_ready` release-decision fields. Its `docker` payload carries the same `cli_path` and `daemon_error` fields so the release record preserves the exact host-side blocker.
 
 Then run `labos release smoke-docs` against a live API to exercise the documented health/profile/create/list/destroy flow in one command. It creates a temporary governed lab record with a valid control-plane requester type and destroys it again so the release operator can capture one JSON proof for the docs/API smoke gate. If a later validation step fails after creation, the command still performs best-effort cleanup before surfacing the failure.
 
@@ -138,7 +138,7 @@ Then run `labos release smoke-cli` against that same API to capture one JSON pro
 
 Then run `labos release smoke-docker` for the runtime-specific evidence payload. It first reuses the same Docker readiness probe and only runs the real-Docker pytest smoke when the host is actually ready, returning one JSON object with the probe result and pytest output.
 
-Then run `labos runtime probe-docker` for the low-level runtime-specific readiness check. It exits non-zero when the Docker CLI is missing or the daemon is unreachable, so release-prep automation can fail honestly before attempting the smoke test.
+Then run `labos runtime probe-docker` for the low-level runtime-specific readiness check. It exits non-zero when the Docker CLI is missing or the daemon is unreachable, and the JSON payload includes `cli_path` plus `daemon_error` when available, so release-prep automation can fail honestly before attempting the smoke test.
 
 The smoke test exercises the implemented Docker adapter directly. If Docker is missing or the daemon is unreachable, the test skips and the Phase 18 release gate remains open by design.
 

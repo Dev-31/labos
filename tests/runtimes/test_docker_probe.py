@@ -18,7 +18,9 @@ def test_probe_reports_missing_cli() -> None:
 
     assert result.ready is False
     assert result.cli_present is False
+    assert result.cli_path is None
     assert result.daemon_reachable is False
+    assert result.daemon_error is None
     assert "docker CLI" in result.detail
 
 
@@ -30,7 +32,9 @@ def test_probe_reports_unreachable_daemon() -> None:
 
     assert result.ready is False
     assert result.cli_present is True
+    assert result.cli_path == "/usr/bin/docker"
     assert result.daemon_reachable is False
+    assert result.daemon_error == "daemon unavailable"
     assert "daemon unavailable" in result.detail
 
 
@@ -42,5 +46,7 @@ def test_probe_reports_ready_environment() -> None:
 
     assert result.ready is True
     assert result.cli_present is True
+    assert result.cli_path == "/usr/bin/docker"
     assert result.daemon_reachable is True
+    assert result.daemon_error is None
     assert result.detail == "docker CLI and daemon are available"

@@ -11,7 +11,9 @@ import docker  # type: ignore[import-untyped]
 @dataclass(frozen=True)
 class DockerEnvironmentProbe:
     cli_present: bool
+    cli_path: str | None
     daemon_reachable: bool
+    daemon_error: str | None
     detail: str
 
     @property
@@ -32,7 +34,9 @@ def probe_docker_environment(
     if docker_path is None:
         return DockerEnvironmentProbe(
             cli_present=False,
+            cli_path=None,
             daemon_reachable=False,
+            daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
         )
 
@@ -43,12 +47,16 @@ def probe_docker_environment(
     except Exception as exc:
         return DockerEnvironmentProbe(
             cli_present=True,
+            cli_path=docker_path,
             daemon_reachable=False,
+            daemon_error=str(exc),
             detail=f"docker daemon is not reachable: {exc}",
         )
 
     return DockerEnvironmentProbe(
         cli_present=True,
+        cli_path=docker_path,
         daemon_reachable=True,
+        daemon_error=None,
         detail="docker CLI and daemon are available",
     )
