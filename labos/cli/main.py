@@ -140,6 +140,22 @@ def _run_cli_json_command(
         raise typer.Exit(code=1) from exc
 
 
+def _run_external_command(args: list[str]) -> str:
+    result = subprocess.run(
+        args,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        if not detail:
+            detail = f"External command failed: {' '.join(args)}"
+        typer.echo(detail, err=True)
+        raise typer.Exit(code=1)
+    return result.stdout
+
+
 def _best_effort_destroy_lab_via_api(*, api_url: str, lab_id: str) -> dict[str, Any] | None:
     with suppress(Exception):
         result = _request_json(api_url=api_url, method="DELETE", path=f"/labs/{lab_id}")
@@ -246,6 +262,7 @@ def release_evidence() -> None:
             "template": {
                 "API smoke": "labos release smoke-docs",
                 "CLI smoke": "labos release smoke-cli",
+                "Docker smoke": "labos release smoke-docker",
                 "Commit": commit,
                 "Docker integration notes": docker_probe.detail,
                 "Docs validated": ", ".join(docs_validated),
@@ -383,6 +400,32 @@ def release_smoke_cli(
             "retrieved_lab": retrieved_lab,
         }
     )
+
+
+@release_app.command("smoke-docker")
+def release_smoke_docker() -> None:
+    """Run the optional real-Docker release smoke and emit one JSON proof payload."""
+    command = ["uv", "run", "pytest", "-q", "tests/integration/test_docker_runtime_smoke.py"]
+    docker_probe = probe_docker_environment()
+    output: str | None = None
+    if docker_probe.ready:
+        output = _run_external_command(command).strip()
+
+    _emit_json(
+        {
+            "command": " ".join(command),
+            "docker": {
+                "cli_present": docker_probe.cli_present,
+                "daemon_reachable": docker_probe.daemon_reachable,
+                "detail": docker_probe.detail,
+                "ready": docker_probe.ready,
+            },
+            "output": output,
+            "ready": docker_probe.ready,
+        }
+    )
+    if not docker_probe.ready:
+        raise typer.Exit(code=1)
 
 
 @profiles_app.command("list")

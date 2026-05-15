@@ -70,16 +70,19 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "labos release evidence" in release_checklist
     assert "labos release smoke-docs" in release_checklist
     assert "labos release smoke-cli" in release_checklist
+    assert "labos release smoke-docker" in release_checklist
     assert "docker integration smoke" in readme.lower()
     assert "labos runtime probe-docker" in readme
     assert "labos release readiness" in readme
     assert "labos release evidence" in readme
     assert "labos release smoke-docs" in readme
     assert "labos release smoke-cli" in readme
+    assert "labos release smoke-docker" in readme
     assert "labos release readiness" in cli_guide
     assert "labos release evidence" in cli_guide
     assert "labos release smoke-docs" in cli_guide
     assert "labos release smoke-cli" in cli_guide
+    assert "labos release smoke-docker" in cli_guide
 
     assert "# Changelog" in changelog
     assert "## v0.1.0 (unreleased)" in changelog

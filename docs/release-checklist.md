@@ -19,6 +19,7 @@ labos release readiness
 labos release evidence
 labos release smoke-docs
 labos release smoke-cli
+labos release smoke-docker
 labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
 ```
@@ -29,7 +30,9 @@ Run `labos release readiness` before the Docker-specific checks so the current b
 
 Run `labos release evidence` when you want the evidence-template fields pre-filled with the current commit SHA, standard verification commands, docs surface, and current Docker readiness detail.
 
-If the host does not have a reachable Docker daemon, do not check off the Docker integration gate. Capture the exact `labos runtime probe-docker` failure detail and leave release tagging blocked until the smoke test passes on a real local Docker setup.
+Use `labos release smoke-docker` when you want one JSON proof for the runtime-side release gate. It first reports the Docker probe result and only runs the real-Docker pytest smoke when the host is actually ready.
+
+If the host does not have a reachable Docker daemon, do not check off the Docker integration gate. Capture the exact `labos runtime probe-docker` failure detail (or the matching `labos release smoke-docker` JSON payload) and leave release tagging blocked until the smoke test passes on a real local Docker setup.
 
 ## Release checklist
 - [ ] Confirm `git status --short` is clean before tagging.

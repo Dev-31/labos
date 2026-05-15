@@ -36,6 +36,7 @@ labos release readiness
 labos release evidence
 labos release smoke-docs
 labos release smoke-cli
+labos release smoke-docker
 labos runtime probe-docker
 labos scheduler enqueue create-lab --requester-id nightly-safe-dev --profile safe-dev
 labos scheduler enqueue start-run --requester-id nightly-run --lab-id <lab-id> --command "python -m pytest"
@@ -89,6 +90,7 @@ labos scheduler dispatch-next
 - `evidence`
 - `smoke-docs [--api-url <url>] [--profile <profile-name>] [--requester-type human|agent|scheduler]`
 - `smoke-cli [--api-url <url>] [--profile <profile-name>] [--requester-type human|agent|scheduler]`
+- `smoke-docker`
 
 `readiness` reports the current Phase 18 release blockers as JSON. Today it checks whether the Git working tree is clean and whether the optional Docker runtime smoke can run on the current host, then exits non-zero while any blocker remains.
 
@@ -97,6 +99,8 @@ labos scheduler dispatch-next
 `smoke-docs` exercises the documented release smoke flow against a live API: `GET /health`, `GET /profiles`, `POST /labs`, `GET /labs`, and `DELETE /labs/<id>`. It emits one JSON summary so operators can capture evidence for the docs/API release gate without manually stitching together multiple commands. If the validation fails after the temporary lab is created, the command still attempts cleanup before returning the error.
 
 `smoke-cli` captures the representative CLI release proof: it verifies the top-level help surface is present, then invokes the actual `labos profiles list`, `labos labs create`, `labos labs list`, `labos labs get`, and `labos labs destroy` commands against the live API. The output is one JSON summary suitable for the checklist's CLI-smoke evidence slot. If a later validation command fails after lab creation, the command still attempts cleanup before returning the failure.
+
+`smoke-docker` captures the runtime-side release proof. It reuses the Docker readiness probe, emits that probe result in JSON, and only runs `uv run pytest -q tests/integration/test_docker_runtime_smoke.py` when the host is actually ready. If Docker is missing or unreachable, it exits non-zero with `output: null` instead of pretending the runtime gate passed.
 
 ### `labos runtime`
 - `probe-docker`

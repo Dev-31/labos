@@ -107,6 +107,7 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
         "template": {
             "API smoke": "labos release smoke-docs",
             "CLI smoke": "labos release smoke-cli",
+            "Docker smoke": "labos release smoke-docker",
             "Commit": "abc123def456",
             "Docker integration notes": "docker CLI is not installed or not on PATH",
             "Docs validated": "README.md, docs/api.md, docs/cli.md, docs/release-checklist.md",
@@ -381,3 +382,72 @@ def test_release_smoke_cli_destroys_created_lab_when_later_step_fails(monkeypatc
         (["labs", "list"], {"LABOS_API_URL": DEFAULT_API_URL}),
         (["labs", "destroy", "lab-2"], {"LABOS_API_URL": DEFAULT_API_URL}),
     ]
+
+
+def test_release_smoke_docker_reports_probe_and_pytest_output(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "labos.cli.main.probe_docker_environment",
+        lambda: DockerEnvironmentProbe(
+            cli_present=True,
+            daemon_reachable=True,
+            detail="docker CLI and daemon are available",
+        ),
+    )
+
+    def fake_run_external_command(args: list[str]) -> str:
+        assert args == [
+            "uv",
+            "run",
+            "pytest",
+            "-q",
+            "tests/integration/test_docker_runtime_smoke.py",
+        ]
+        return "1 passed in 0.42s\n"
+
+    monkeypatch.setattr("labos.cli.main._run_external_command", fake_run_external_command)
+
+    result = runner.invoke(app, ["release", "smoke-docker"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "command": "uv run pytest -q tests/integration/test_docker_runtime_smoke.py",
+        "docker": {
+            "cli_present": True,
+            "daemon_reachable": True,
+            "detail": "docker CLI and daemon are available",
+            "ready": True,
+        },
+        "output": "1 passed in 0.42s",
+        "ready": True,
+    }
+
+
+def test_release_smoke_docker_fails_honestly_when_probe_is_not_ready(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "labos.cli.main.probe_docker_environment",
+        lambda: DockerEnvironmentProbe(
+            cli_present=False,
+            daemon_reachable=False,
+            detail="docker CLI is not installed or not on PATH",
+        ),
+    )
+
+    def fake_run_external_command(args: list[str]) -> str:
+        raise AssertionError(f"pytest should not run when docker probe fails: {args}")
+
+    monkeypatch.setattr("labos.cli.main._run_external_command", fake_run_external_command)
+
+    result = runner.invoke(app, ["release", "smoke-docker"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout) == {
+        "command": "uv run pytest -q tests/integration/test_docker_runtime_smoke.py",
+        "docker": {
+            "cli_present": False,
+            "daemon_reachable": False,
+            "detail": "docker CLI is not installed or not on PATH",
+            "ready": False,
+        },
+        "output": None,
+        "ready": False,
+    }

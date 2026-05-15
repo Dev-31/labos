@@ -107,6 +107,7 @@ labos release readiness
 labos release evidence
 labos release smoke-docs
 labos release smoke-cli
+labos release smoke-docker
 labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
 ```
@@ -119,7 +120,9 @@ Then run `labos release smoke-docs` against a live API to exercise the documente
 
 Then run `labos release smoke-cli` against that same API to capture one JSON proof for the CLI help/profile/create/list/get/destroy flow. It invokes those representative `labos` commands through the CLI entrypoint itself, so the release checklist gets proof of the real operator surface instead of a direct helper shortcut. If one of the later validation commands fails after creation, LabOS still attempts to destroy the temporary lab record before returning the error.
 
-Then run `labos runtime probe-docker` for the runtime-specific readiness check. It exits non-zero when the Docker CLI is missing or the daemon is unreachable, so release-prep automation can fail honestly before attempting the smoke test.
+Then run `labos release smoke-docker` for the runtime-specific evidence payload. It first reuses the same Docker readiness probe and only runs the real-Docker pytest smoke when the host is actually ready, returning one JSON object with the probe result and pytest output.
+
+Then run `labos runtime probe-docker` for the low-level runtime-specific readiness check. It exits non-zero when the Docker CLI is missing or the daemon is unreachable, so release-prep automation can fail honestly before attempting the smoke test.
 
 The smoke test exercises the implemented Docker adapter directly. If Docker is missing or the daemon is unreachable, the test skips and the Phase 18 release gate remains open by design.
 

@@ -32,5 +32,5 @@ probe-docker:
 release-evidence:
 	$(UV) run labos release evidence
 
-smoke-docker: probe-docker
-	$(UV) run pytest -q tests/integration/test_docker_runtime_smoke.py
+smoke-docker:
+	$(UV) run labos release smoke-docker
