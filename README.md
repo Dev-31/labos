@@ -103,11 +103,14 @@ make run-api
 When a real local Docker daemon is available, run:
 
 ```bash
+labos release readiness
 labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
 ```
 
-Run `labos runtime probe-docker` first to get a machine-readable readiness check. It exits non-zero when the Docker CLI is missing or the daemon is unreachable, so release-prep automation can fail honestly before attempting the smoke test.
+Run `labos release readiness` first to see the current release blockers in one machine-readable payload. It reports whether the checkout is clean and whether the optional Docker smoke can run on the current host.
+
+Then run `labos runtime probe-docker` for the runtime-specific readiness check. It exits non-zero when the Docker CLI is missing or the daemon is unreachable, so release-prep automation can fail honestly before attempting the smoke test.
 
 The smoke test exercises the implemented Docker adapter directly. If Docker is missing or the daemon is unreachable, the test skips and the Phase 18 release gate remains open by design.
 

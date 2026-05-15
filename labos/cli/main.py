@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from typing import Any
 
 import httpx
@@ -21,6 +22,7 @@ approvals_app = typer.Typer(help="Inspect and decide approval requests")
 events_app = typer.Typer(help="Inspect audit and event records")
 scheduler_app = typer.Typer(help="Queue and dispatch scheduler-controlled jobs")
 runtime_app = typer.Typer(help="Inspect runtime adapter readiness and honesty boundaries")
+release_app = typer.Typer(help="Inspect release readiness and current blockers")
 app.add_typer(profiles_app, name="profiles")
 app.add_typer(labs_app, name="labs")
 app.add_typer(runs_app, name="runs")
@@ -30,6 +32,7 @@ app.add_typer(approvals_app, name="approvals")
 app.add_typer(events_app, name="events")
 app.add_typer(scheduler_app, name="scheduler")
 app.add_typer(runtime_app, name="runtime")
+app.add_typer(release_app, name="release")
 
 
 def _normalize_api_url(api_url: str) -> str:
@@ -38,6 +41,16 @@ def _normalize_api_url(api_url: str) -> str:
 
 def _emit_json(payload: Any) -> None:
     typer.echo(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _git_status_is_clean() -> bool:
+    result = subprocess.run(
+        ["git", "status", "--short"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and result.stdout.strip() == ""
 
 
 def _request_json(
@@ -94,6 +107,34 @@ def runtime_probe_docker() -> None:
         }
     )
     if not probe.ready:
+        raise typer.Exit(code=1)
+
+
+@release_app.command("readiness")
+def release_readiness() -> None:
+    """Report whether the current checkout is ready for the remaining v0.1 release gate."""
+    git_clean = _git_status_is_clean()
+    docker_probe = probe_docker_environment()
+    blockers: list[str] = []
+    if not git_clean:
+        blockers.append("git working tree is not clean")
+    if not docker_probe.ready:
+        blockers.append(docker_probe.detail)
+
+    _emit_json(
+        {
+            "blockers": blockers,
+            "docker": {
+                "cli_present": docker_probe.cli_present,
+                "daemon_reachable": docker_probe.daemon_reachable,
+                "detail": docker_probe.detail,
+                "ready": docker_probe.ready,
+            },
+            "git_clean": git_clean,
+            "ready": not blockers,
+        }
+    )
+    if blockers:
         raise typer.Exit(code=1)
 
 

@@ -32,6 +32,7 @@ labos approvals list
 labos approvals approve <approval-id> --actor operator --comment "manual review accepted"
 labos approvals deny <approval-id> --actor operator --comment "artifact denied"
 labos events list
+labos release readiness
 labos runtime probe-docker
 labos scheduler enqueue create-lab --requester-id nightly-safe-dev --profile safe-dev
 labos scheduler enqueue start-run --requester-id nightly-run --lab-id <lab-id> --command "python -m pytest"
@@ -79,6 +80,11 @@ labos scheduler dispatch-next
 
 ### `labos events`
 - `list`
+
+### `labos release`
+- `readiness`
+
+`readiness` reports the current Phase 18 release blockers as JSON. Today it checks whether the Git working tree is clean and whether the optional Docker runtime smoke can run on the current host, then exits non-zero while any blocker remains.
 
 ### `labos runtime`
 - `probe-docker`
