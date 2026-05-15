@@ -128,9 +128,9 @@ make smoke-docker
 make probe-docker
 ```
 
-Run `labos release readiness` first to see the current release blockers in one machine-readable payload. It reports whether the checkout is clean and whether the optional Docker smoke can run on the current host.
+Run `labos release readiness` first to see the current release blockers in one machine-readable payload. It reports whether the checkout is clean, whether the optional Docker smoke can run on the current host, and includes `next_action`, `pending_steps`, and `tag_ready` fields so release automation can explain exactly what is still blocking the `v0.1.0` tag.
 
-Run `labos release evidence` when you want the release-checklist evidence template pre-filled with the current commit SHA, the standard verification commands, the docs surface to re-read, and the current Docker blocker detail.
+Run `labos release evidence` when you want the release-checklist evidence template pre-filled with the current commit SHA, the standard verification commands, the docs surface to re-read, the current Docker blocker detail, and the same `next_action` / `pending_steps` / `tag_ready` release-decision fields.
 
 Then run `labos release smoke-docs` against a live API to exercise the documented health/profile/create/list/destroy flow in one command. It creates a temporary governed lab record with a valid control-plane requester type and destroys it again so the release operator can capture one JSON proof for the docs/API smoke gate. If a later validation step fails after creation, the command still performs best-effort cleanup before surfacing the failure.
 

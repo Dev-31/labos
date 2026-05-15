@@ -92,9 +92,9 @@ labos scheduler dispatch-next
 - `smoke-cli [--api-url <url>] [--profile <profile-name>] [--requester-type human|agent|scheduler]`
 - `smoke-docker`
 
-`readiness` reports the current Phase 18 release blockers as JSON. Today it checks whether the Git working tree is clean and whether the optional Docker runtime smoke can run on the current host, then exits non-zero while any blocker remains.
+`readiness` reports the current Phase 18 release blockers as JSON. Today it checks whether the Git working tree is clean and whether the optional Docker runtime smoke can run on the current host, then exits non-zero while any blocker remains. The payload also includes `next_action`, `pending_steps`, and `tag_ready` so operators can see exactly what still stands between the current checkout and an honest `v0.1.0` tag.
 
-`evidence` emits a machine-readable version of the release-checklist evidence template. It includes the current commit SHA, the standard verification commands, the docs surface to re-read before tagging, and the current Docker blocker detail so release notes or issue templates can be pre-filled honestly.
+`evidence` emits a machine-readable version of the release-checklist evidence template. It includes the current commit SHA, the standard verification commands, the docs surface to re-read before tagging, the current Docker blocker detail, and the same `next_action` / `pending_steps` / `tag_ready` fields so release notes or issue templates can be pre-filled honestly.
 
 `smoke-docs` exercises the documented release smoke flow against a live API: `GET /health`, `GET /profiles`, `POST /labs`, `GET /labs`, and `DELETE /labs/<id>`. It emits one JSON summary so operators can capture evidence for the docs/API release gate without manually stitching together multiple commands. If the validation fails after the temporary lab is created, the command still attempts cleanup before returning the error.
 

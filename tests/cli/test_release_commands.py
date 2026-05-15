@@ -35,7 +35,12 @@ def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
             "ready": True,
         },
         "git_clean": True,
+        "next_action": "tag the verified v0.1.0 release once changelog/release notes are finalized",
+        "pending_steps": [
+            "tag first release",
+        ],
         "ready": True,
+        "tag_ready": True,
     }
 
 
@@ -65,7 +70,14 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
             "ready": False,
         },
         "git_clean": False,
+        "next_action": "clean the git working tree, then re-run labos release readiness",
+        "pending_steps": [
+            "clean git working tree",
+            "validate local Docker integration from scratch",
+            "tag first release",
+        ],
         "ready": False,
+        "tag_ready": False,
     }
 
 
@@ -104,6 +116,14 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
         ],
         "git_clean": False,
         "honesty_boundary_confirmed": False,
+        "next_action": "clean the git working tree, then re-run labos release readiness",
+        "pending_steps": [
+            "clean git working tree",
+            "validate local Docker integration from scratch",
+            "tag first release",
+        ],
+        "ready": False,
+        "tag_ready": False,
         "template": {
             "API smoke": "labos release smoke-docs",
             "CLI smoke": "labos release smoke-cli",
@@ -114,6 +134,12 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
             "Honesty boundary confirmed": "no",
             "Install smoke": "uv sync --extra dev",
             "Lint": "uv run ruff check .",
+            "Next action": "clean the git working tree, then re-run labos release readiness",
+            "Pending steps": (
+                "clean git working tree; validate local Docker integration from "
+                "scratch; tag first release"
+            ),
+            "Tag ready": "no",
             "Tests": "uv run pytest -q",
             "Types": "uv run mypy",
         },

@@ -68,6 +68,61 @@ def _git_head_sha() -> str:
     return result.stdout.strip() or "unknown"
 
 
+def _release_pending_steps(*, git_clean: bool, docker_ready: bool) -> list[str]:
+    pending_steps: list[str] = []
+    if not git_clean:
+        pending_steps.append("clean git working tree")
+    if not docker_ready:
+        pending_steps.append("validate local Docker integration from scratch")
+    pending_steps.append("tag first release")
+    return pending_steps
+
+
+def _release_next_action(*, git_clean: bool, docker_ready: bool) -> str:
+    if not git_clean:
+        return "clean the git working tree, then re-run labos release readiness"
+    if not docker_ready:
+        return (
+            "install Docker CLI or run on a host with a reachable Docker daemon, "
+            "then re-run labos release smoke-docker and labos runtime probe-docker"
+        )
+    return "tag the verified v0.1.0 release once changelog/release notes are finalized"
+
+
+def _release_status_payload(*, include_commit: bool = False) -> dict[str, Any]:
+    git_clean = _git_status_is_clean()
+    docker_probe = probe_docker_environment()
+    blockers: list[str] = []
+    if not git_clean:
+        blockers.append("git working tree is not clean")
+    if not docker_probe.ready:
+        blockers.append(docker_probe.detail)
+
+    payload: dict[str, Any] = {
+        "blockers": blockers,
+        "docker": {
+            "cli_present": docker_probe.cli_present,
+            "daemon_reachable": docker_probe.daemon_reachable,
+            "detail": docker_probe.detail,
+            "ready": docker_probe.ready,
+        },
+        "git_clean": git_clean,
+        "next_action": _release_next_action(
+            git_clean=git_clean,
+            docker_ready=docker_probe.ready,
+        ),
+        "pending_steps": _release_pending_steps(
+            git_clean=git_clean,
+            docker_ready=docker_probe.ready,
+        ),
+        "ready": not blockers,
+        "tag_ready": git_clean and docker_probe.ready,
+    }
+    if include_commit:
+        payload["commit"] = _git_head_sha()
+    return payload
+
+
 def _request_json(
     *,
     api_url: str,
@@ -201,41 +256,17 @@ def runtime_probe_docker() -> None:
 @release_app.command("readiness")
 def release_readiness() -> None:
     """Report whether the current checkout is ready for the remaining v0.1 release gate."""
-    git_clean = _git_status_is_clean()
-    docker_probe = probe_docker_environment()
-    blockers: list[str] = []
-    if not git_clean:
-        blockers.append("git working tree is not clean")
-    if not docker_probe.ready:
-        blockers.append(docker_probe.detail)
+    payload = _release_status_payload()
 
-    _emit_json(
-        {
-            "blockers": blockers,
-            "docker": {
-                "cli_present": docker_probe.cli_present,
-                "daemon_reachable": docker_probe.daemon_reachable,
-                "detail": docker_probe.detail,
-                "ready": docker_probe.ready,
-            },
-            "git_clean": git_clean,
-            "ready": not blockers,
-        }
-    )
-    if blockers:
+    _emit_json(payload)
+    if payload["blockers"]:
         raise typer.Exit(code=1)
 
 
 @release_app.command("evidence")
 def release_evidence() -> None:
     """Emit a machine-readable release evidence template with current blockers."""
-    git_clean = _git_status_is_clean()
-    docker_probe = probe_docker_environment()
-    blockers: list[str] = []
-    if not git_clean:
-        blockers.append("git working tree is not clean")
-    if not docker_probe.ready:
-        blockers.append(docker_probe.detail)
+    status = _release_status_payload(include_commit=True)
 
     docs_validated = [
         "README.md",
@@ -243,32 +274,26 @@ def release_evidence() -> None:
         "docs/cli.md",
         "docs/release-checklist.md",
     ]
-    commit = _git_head_sha()
-    honesty_boundary_confirmed = git_clean and docker_probe.ready
+    honesty_boundary_confirmed = bool(status["tag_ready"])
 
     _emit_json(
         {
-            "blockers": blockers,
-            "commit": commit,
-            "docker": {
-                "cli_present": docker_probe.cli_present,
-                "daemon_reachable": docker_probe.daemon_reachable,
-                "detail": docker_probe.detail,
-                "ready": docker_probe.ready,
-            },
+            **status,
             "docs_validated": docs_validated,
-            "git_clean": git_clean,
             "honesty_boundary_confirmed": honesty_boundary_confirmed,
             "template": {
                 "API smoke": "labos release smoke-docs",
                 "CLI smoke": "labos release smoke-cli",
                 "Docker smoke": "labos release smoke-docker",
-                "Commit": commit,
-                "Docker integration notes": docker_probe.detail,
+                "Commit": status["commit"],
+                "Docker integration notes": status["docker"]["detail"],
                 "Docs validated": ", ".join(docs_validated),
                 "Honesty boundary confirmed": "yes" if honesty_boundary_confirmed else "no",
                 "Install smoke": "uv sync --extra dev",
                 "Lint": "uv run ruff check .",
+                "Next action": status["next_action"],
+                "Pending steps": "; ".join(status["pending_steps"]),
+                "Tag ready": "yes" if status["tag_ready"] else "no",
                 "Tests": "uv run pytest -q",
                 "Types": "uv run mypy",
             },
