@@ -34,9 +34,9 @@ make probe-docker
 
 Record the command outputs or CI links used for the release decision.
 
-Run `labos release readiness` before the Docker-specific checks so the current blockers are explicit in one JSON payload. Record the `next_action`, `pending_steps`, and `tag_ready` fields alongside the blocker list so the release decision is auditable. Also capture `docker.cli_path` and `docker.daemon_error` from that payload so the evidence shows whether Docker was missing entirely or just unreachable.
+Run `labos release readiness` before the Docker-specific checks so the current blockers are explicit in one JSON payload. Record the `next_action`, `pending_steps`, and `tag_ready` fields alongside the blocker list so the release decision is auditable. Also capture `docker.cli_path`, `docker.daemon_error`, `docker.issue_code`, and `docker.remediation` from that payload so the evidence shows whether Docker was missing entirely, merely unreachable, or blocked by daemon permissions.
 
-Run `labos release evidence` when you want the evidence-template fields pre-filled with the current commit SHA, standard verification commands, docs surface, current Docker readiness detail, and the same `next_action` / `pending_steps` / `tag_ready` fields used to justify whether tagging is allowed. Preserve the nested `docker.cli_path` and `docker.daemon_error` values in the release record when Docker is the remaining blocker.
+Run `labos release evidence` when you want the evidence-template fields pre-filled with the current commit SHA, standard verification commands, docs surface, current Docker readiness detail, and the same `next_action` / `pending_steps` / `tag_ready` fields used to justify whether tagging is allowed. Preserve the nested `docker.cli_path`, `docker.daemon_error`, `docker.issue_code`, and `docker.remediation` values in the release record when Docker is the remaining blocker.
 
 If you prefer Make wrappers during release prep, the repo exposes one-step aliases for the same helper surface: `make release-readiness`, `make release-evidence`, `make smoke-docs`, `make smoke-cli`, `make smoke-local`, `make smoke-docker`, and `make probe-docker`.
 
@@ -84,6 +84,8 @@ Next action: <next_action field from labos release readiness>
 Pending steps: <pending_steps field from labos release readiness>
 Docker CLI path: <docker.cli_path field from labos release readiness>
 Docker daemon error: <docker.daemon_error field from labos release readiness>
+Docker issue code: <docker.issue_code field from labos release readiness>
+Docker remediation: <docker.remediation field from labos release readiness>
 Tag ready: <tag_ready field from labos release readiness>
 Honesty boundary confirmed: yes/no
 ```

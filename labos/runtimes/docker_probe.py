@@ -15,6 +15,8 @@ class DockerEnvironmentProbe:
     daemon_reachable: bool
     daemon_error: str | None
     detail: str
+    issue_code: str
+    remediation: str
 
     @property
     def ready(self) -> bool:
@@ -23,6 +25,20 @@ class DockerEnvironmentProbe:
 
 DockerClientFactory = Callable[[], Any]
 WhichResolver = Callable[[str], str | None]
+
+
+def _classify_daemon_error(error: str) -> tuple[str, str]:
+    normalized = error.lower()
+    if "permission denied" in normalized:
+        return (
+            "daemon_permission_denied",
+            "run on a host/user that can access the Docker daemon "
+            "(for example via docker group membership or a rootless Docker context)",
+        )
+    return (
+        "daemon_unreachable",
+        "start a reachable Docker daemon or point the client at one",
+    )
 
 
 def probe_docker_environment(
@@ -38,6 +54,8 @@ def probe_docker_environment(
             daemon_reachable=False,
             daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
+            issue_code="cli_missing",
+            remediation="install Docker CLI and ensure it is available on PATH",
         )
 
     factory = client_factory or docker.from_env
@@ -45,12 +63,15 @@ def probe_docker_environment(
         client = factory()
         client.ping()
     except Exception as exc:
+        issue_code, remediation = _classify_daemon_error(str(exc))
         return DockerEnvironmentProbe(
             cli_present=True,
             cli_path=docker_path,
             daemon_reachable=False,
             daemon_error=str(exc),
             detail=f"docker daemon is not reachable: {exc}",
+            issue_code=issue_code,
+            remediation=remediation,
         )
 
     return DockerEnvironmentProbe(
@@ -59,4 +80,6 @@ def probe_docker_environment(
         daemon_reachable=True,
         daemon_error=None,
         detail="docker CLI and daemon are available",
+        issue_code="ready",
+        remediation="none",
     )

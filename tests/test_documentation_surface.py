@@ -74,6 +74,8 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "tag_ready" in release_checklist
     assert "cli_path" in release_checklist
     assert "daemon_error" in release_checklist
+    assert "issue_code" in release_checklist
+    assert "remediation" in release_checklist
     assert "labos release smoke-docs" in release_checklist
     assert "labos release smoke-cli" in release_checklist
     assert "labos release smoke-local" in release_checklist
@@ -93,6 +95,8 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "tag_ready" in readme
     assert "cli_path" in readme
     assert "daemon_error" in readme
+    assert "issue_code" in readme
+    assert "remediation" in readme
     assert "labos release smoke-docs" in readme
     assert "labos release smoke-cli" in readme
     assert "labos release smoke-local" in readme
@@ -108,6 +112,8 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "tag_ready" in cli_guide
     assert "cli_path" in cli_guide
     assert "daemon_error" in cli_guide
+    assert "issue_code" in cli_guide
+    assert "remediation" in cli_guide
     assert "labos release smoke-docs" in cli_guide
     assert "labos release smoke-cli" in cli_guide
     assert "labos release smoke-local" in cli_guide

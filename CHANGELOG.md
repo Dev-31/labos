@@ -26,6 +26,7 @@ All notable changes to LabOS will be documented in this file.
 - Release-prep tooling now also includes `labos release smoke-docker` and `make smoke-docker`, which reuse the Docker readiness probe and only run the real-Docker pytest smoke when the current host can actually support it.
 - Release-prep tooling now also includes `make release-readiness` alongside `make release-evidence`, so operators can drive the full readiness/evidence helper surface through consistent Make targets without memorizing the underlying CLI commands.
 - Release smoke commands now perform best-effort cleanup of their temporary lab records if a later validation step fails after creation, reducing false leftover metadata during release rehearsals.
+- Docker readiness payloads now classify blockers with `issue_code` and `remediation`, making permission-denied daemon failures distinct from missing CLI or generic daemon-unreachable cases across the release helper surface.
 
 ### Honesty boundary
 - LabOS `v0.1.0` is the **public core** release, not a promise of full runtime orchestration.

@@ -61,6 +61,8 @@ def _docker_probe_payload(probe: Any) -> dict[str, Any]:
         "daemon_reachable": probe.daemon_reachable,
         "daemon_error": probe.daemon_error,
         "detail": probe.detail,
+        "issue_code": probe.issue_code,
+        "remediation": probe.remediation,
         "ready": probe.ready,
     }
 
@@ -97,12 +99,12 @@ def _release_pending_steps(*, git_clean: bool, docker_ready: bool) -> list[str]:
     return pending_steps
 
 
-def _release_next_action(*, git_clean: bool, docker_ready: bool) -> str:
+def _release_next_action(*, git_clean: bool, docker_probe: Any) -> str:
     if not git_clean:
         return "clean the git working tree, then re-run labos release readiness"
-    if not docker_ready:
+    if not docker_probe.ready:
         return (
-            "install Docker CLI or run on a host with a reachable Docker daemon, "
+            f"{docker_probe.remediation}, "
             "then re-run labos release smoke-docker and labos runtime probe-docker"
         )
     return "tag the verified v0.1.0 release once changelog/release notes are finalized"
@@ -123,7 +125,7 @@ def _release_status_payload(*, include_commit: bool = False) -> dict[str, Any]:
         "git_clean": git_clean,
         "next_action": _release_next_action(
             git_clean=git_clean,
-            docker_ready=docker_probe.ready,
+            docker_probe=docker_probe,
         ),
         "pending_steps": _release_pending_steps(
             git_clean=git_clean,
@@ -403,7 +405,9 @@ def release_evidence() -> None:
                 "Commit": status["commit"],
                 "Docker CLI path": status["docker"]["cli_path"] or "unknown",
                 "Docker daemon error": status["docker"]["daemon_error"] or "n/a",
+                "Docker issue code": status["docker"]["issue_code"],
                 "Docker integration notes": status["docker"]["detail"],
+                "Docker remediation": status["docker"]["remediation"],
                 "Docs validated": ", ".join(docs_validated),
                 "Honesty boundary confirmed": "yes" if honesty_boundary_confirmed else "no",
                 "Install smoke": "uv sync --extra dev",

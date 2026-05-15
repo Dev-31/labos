@@ -19,6 +19,8 @@ def test_runtime_probe_docker_reports_ready_environment(monkeypatch) -> None:
             daemon_reachable=True,
             daemon_error=None,
             detail="docker CLI and daemon are available",
+            issue_code="ready",
+            remediation="none",
         ),
     )
 
@@ -31,6 +33,8 @@ def test_runtime_probe_docker_reports_ready_environment(monkeypatch) -> None:
         "daemon_reachable": True,
         "daemon_error": None,
         "detail": "docker CLI and daemon are available",
+        "issue_code": "ready",
+        "remediation": "none",
         "ready": True,
     }
 
@@ -44,6 +48,8 @@ def test_runtime_probe_docker_fails_when_environment_is_not_ready(monkeypatch) -
             daemon_reachable=False,
             daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
+            issue_code="cli_missing",
+            remediation="install Docker CLI and ensure it is available on PATH",
         ),
     )
 
@@ -56,5 +62,7 @@ def test_runtime_probe_docker_fails_when_environment_is_not_ready(monkeypatch) -
         "daemon_reachable": False,
         "daemon_error": None,
         "detail": "docker CLI is not installed or not on PATH",
+        "issue_code": "cli_missing",
+        "remediation": "install Docker CLI and ensure it is available on PATH",
         "ready": False,
     }

@@ -22,6 +22,8 @@ def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
             daemon_reachable=True,
             daemon_error=None,
             detail="docker CLI and daemon are available",
+            issue_code="ready",
+            remediation="none",
         ),
     )
 
@@ -36,6 +38,8 @@ def test_release_readiness_reports_clean_ready_repo(monkeypatch) -> None:
             "daemon_reachable": True,
             "daemon_error": None,
             "detail": "docker CLI and daemon are available",
+            "issue_code": "ready",
+            "remediation": "none",
             "ready": True,
         },
         "git_clean": True,
@@ -58,6 +62,8 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
             daemon_reachable=False,
             daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
+            issue_code="cli_missing",
+            remediation="install Docker CLI and ensure it is available on PATH",
         ),
     )
 
@@ -75,6 +81,8 @@ def test_release_readiness_reports_blockers_and_fails(monkeypatch) -> None:
             "daemon_reachable": False,
             "daemon_error": None,
             "detail": "docker CLI is not installed or not on PATH",
+            "issue_code": "cli_missing",
+            "remediation": "install Docker CLI and ensure it is available on PATH",
             "ready": False,
         },
         "git_clean": False,
@@ -100,6 +108,8 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
             daemon_reachable=False,
             daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
+            issue_code="cli_missing",
+            remediation="install Docker CLI and ensure it is available on PATH",
         ),
     )
 
@@ -118,6 +128,8 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
             "daemon_reachable": False,
             "daemon_error": None,
             "detail": "docker CLI is not installed or not on PATH",
+            "issue_code": "cli_missing",
+            "remediation": "install Docker CLI and ensure it is available on PATH",
             "ready": False,
         },
         "docs_validated": [
@@ -143,7 +155,9 @@ def test_release_evidence_reports_machine_readable_release_template(monkeypatch)
             "Commit": "abc123def456",
             "Docker CLI path": "unknown",
             "Docker daemon error": "n/a",
+            "Docker issue code": "cli_missing",
             "Docker integration notes": "docker CLI is not installed or not on PATH",
+            "Docker remediation": "install Docker CLI and ensure it is available on PATH",
             "Docs validated": "README.md, docs/api.md, docs/cli.md, docs/release-checklist.md",
             "Honesty boundary confirmed": "no",
             "Install smoke": "uv sync --extra dev",
@@ -433,6 +447,8 @@ def test_release_smoke_docker_reports_probe_and_pytest_output(monkeypatch) -> No
             daemon_reachable=True,
             daemon_error=None,
             detail="docker CLI and daemon are available",
+            issue_code="ready",
+            remediation="none",
         ),
     )
 
@@ -459,6 +475,8 @@ def test_release_smoke_docker_reports_probe_and_pytest_output(monkeypatch) -> No
             "daemon_reachable": True,
             "daemon_error": None,
             "detail": "docker CLI and daemon are available",
+            "issue_code": "ready",
+            "remediation": "none",
             "ready": True,
         },
         "output": "1 passed in 0.42s",
@@ -475,6 +493,8 @@ def test_release_smoke_docker_fails_honestly_when_probe_is_not_ready(monkeypatch
             daemon_reachable=False,
             daemon_error=None,
             detail="docker CLI is not installed or not on PATH",
+            issue_code="cli_missing",
+            remediation="install Docker CLI and ensure it is available on PATH",
         ),
     )
 
@@ -494,6 +514,8 @@ def test_release_smoke_docker_fails_honestly_when_probe_is_not_ready(monkeypatch
             "daemon_reachable": False,
             "daemon_error": None,
             "detail": "docker CLI is not installed or not on PATH",
+            "issue_code": "cli_missing",
+            "remediation": "install Docker CLI and ensure it is available on PATH",
             "ready": False,
         },
         "output": None,
@@ -554,6 +576,8 @@ def test_release_smoke_local_bootstraps_temp_api_and_runs_release_smokes(
                 "daemon_reachable": True,
                 "daemon_error": None,
                 "detail": "docker CLI and daemon are available",
+                "issue_code": "ready",
+                "remediation": "none",
                 "ready": True,
             },
             "output": "1 passed in 0.42s",
@@ -592,6 +616,8 @@ def test_release_smoke_local_bootstraps_temp_api_and_runs_release_smokes(
                 "daemon_reachable": True,
                 "daemon_error": None,
                 "detail": "docker CLI and daemon are available",
+                "issue_code": "ready",
+                "remediation": "none",
                 "ready": True,
             },
             "output": "1 passed in 0.42s",
@@ -655,6 +681,8 @@ def test_release_smoke_local_stops_temp_api_and_fails_when_docker_smoke_is_block
                 "daemon_reachable": False,
                 "daemon_error": None,
                 "detail": "docker CLI is not installed or not on PATH",
+                "issue_code": "cli_missing",
+                "remediation": "install Docker CLI and ensure it is available on PATH",
                 "ready": False,
             },
             "output": None,
