@@ -92,7 +92,7 @@ labos scheduler dispatch-next
 
 `smoke-docs` exercises the documented release smoke flow against a live API: `GET /health`, `GET /profiles`, `POST /labs`, `GET /labs`, and `DELETE /labs/<id>`. It emits one JSON summary so operators can capture evidence for the docs/API release gate without manually stitching together multiple commands.
 
-`smoke-cli` captures the representative CLI release proof: it verifies the top-level help surface is present, then exercises the same public API flow behind `labos profiles list`, `labos labs create`, `labos labs list`, `labos labs get`, and `labos labs destroy`. The output is one JSON summary suitable for the checklist's CLI-smoke evidence slot.
+`smoke-cli` captures the representative CLI release proof: it verifies the top-level help surface is present, then invokes the actual `labos profiles list`, `labos labs create`, `labos labs list`, `labos labs get`, and `labos labs destroy` commands against the live API. The output is one JSON summary suitable for the checklist's CLI-smoke evidence slot.
 
 ### `labos runtime`
 - `probe-docker`

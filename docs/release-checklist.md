@@ -39,7 +39,7 @@ If the host does not have a reachable Docker daemon, do not check off the Docker
 - [ ] Apply migrations against a fresh database (`uv run alembic upgrade head`).
 - [ ] Start the API (`uv run uvicorn labos.api.app:app`).
 - [ ] Re-run quickstart/API smoke commands from the docs and verify the responses (`labos release smoke-docs` can capture one JSON proof for the health/profile/create/list/destroy flow).
-- [ ] Validate CLI help and representative commands against a live API (`labos release smoke-cli` can capture one JSON proof for the help/profile/create/list/get/destroy flow).
+- [ ] Validate CLI help and representative commands against a live API (`labos release smoke-cli` can capture one JSON proof for the help/profile/create/list/get/destroy flow by invoking the actual CLI commands).
 - [ ] Run `labos release readiness` and record any remaining blockers.
 - [ ] Run `labos runtime probe-docker` and record the exact readiness output.
 - [ ] Validate local Docker integration from scratch, including the adapter honesty boundary and any runtime smoke tests that are actually supported by the repo.

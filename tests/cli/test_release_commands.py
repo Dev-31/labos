@@ -144,35 +144,37 @@ def test_release_smoke_docs_runs_health_profile_create_list_and_destroy(monkeypa
 
 
 def test_release_smoke_cli_validates_help_and_representative_commands(monkeypatch) -> None:
-    calls: list[tuple[str, str, str, dict[str, Any] | None]] = []
+    calls: list[tuple[list[str], dict[str, str] | None]] = []
 
-    def fake_request_json(
+    def fake_run_cli_command(
+        args: list[str],
         *,
-        api_url: str,
-        method: str,
-        path: str,
-        payload: dict[str, Any] | None = None,
-    ) -> Any:
-        calls.append((api_url, method, path, payload))
-        if (method, path) == ("GET", "/profiles"):
-            return [{"name": "safe-dev"}, {"name": "red-zone"}]
-        if (method, path) == ("POST", "/labs"):
-            assert payload == {
-                "profile_name": "safe-dev",
-                "requester_type": "human",
-                "base_snapshot_id": None,
-                "metadata": {"source": "release-smoke-cli"},
-            }
-            return {"id": "lab-2", "state": "approved", "profile_name": "safe-dev"}
-        if (method, path) == ("GET", "/labs"):
-            return [{"id": "lab-2", "state": "approved"}]
-        if (method, path) == ("GET", "/labs/lab-2"):
-            return {"id": "lab-2", "state": "approved", "profile_name": "safe-dev"}
-        if (method, path) == ("DELETE", "/labs/lab-2"):
-            return {"id": "lab-2", "state": "destroyed"}
-        raise AssertionError(f"unexpected request: {(method, path, payload)}")
+        env_overrides: dict[str, str] | None = None,
+    ) -> str:
+        calls.append((args, env_overrides))
+        if args == ["--help"]:
+            return "Usage: labos [OPTIONS] COMMAND [ARGS]...\n\n  LabOS operator CLI\n"
+        if args == ["profiles", "list"]:
+            return json.dumps([{"name": "safe-dev"}, {"name": "red-zone"}])
+        if args == [
+            "labs",
+            "create",
+            "safe-dev",
+            "--requester-type",
+            "human",
+            "--metadata",
+            '{"source": "release-smoke-cli"}',
+        ]:
+            return json.dumps({"id": "lab-2", "state": "approved", "profile_name": "safe-dev"})
+        if args == ["labs", "list"]:
+            return json.dumps([{"id": "lab-2", "state": "approved"}])
+        if args == ["labs", "get", "lab-2"]:
+            return json.dumps({"id": "lab-2", "state": "approved", "profile_name": "safe-dev"})
+        if args == ["labs", "destroy", "lab-2"]:
+            return json.dumps({"id": "lab-2", "state": "destroyed"})
+        raise AssertionError(f"unexpected CLI command: {args}")
 
-    monkeypatch.setattr("labos.cli.main._request_json", fake_request_json)
+    monkeypatch.setattr("labos.cli.main._run_cli_command", fake_run_cli_command)
 
     result = runner.invoke(
         app,
@@ -209,19 +211,21 @@ def test_release_smoke_cli_validates_help_and_representative_commands(monkeypatc
         "retrieved_lab": {"id": "lab-2", "profile_name": "safe-dev", "state": "approved"},
     }
     assert calls == [
-        ("http://127.0.0.1:8005", "GET", "/profiles", None),
+        (["--help"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
+        (["profiles", "list"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
         (
-            "http://127.0.0.1:8005",
-            "POST",
-            "/labs",
-            {
-                "profile_name": "safe-dev",
-                "requester_type": "human",
-                "base_snapshot_id": None,
-                "metadata": {"source": "release-smoke-cli"},
-            },
+            [
+                "labs",
+                "create",
+                "safe-dev",
+                "--requester-type",
+                "human",
+                "--metadata",
+                '{"source": "release-smoke-cli"}',
+            ],
+            {"LABOS_API_URL": "http://127.0.0.1:8005"},
         ),
-        ("http://127.0.0.1:8005", "GET", "/labs", None),
-        ("http://127.0.0.1:8005", "GET", "/labs/lab-2", None),
-        ("http://127.0.0.1:8005", "DELETE", "/labs/lab-2", None),
+        (["labs", "list"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
+        (["labs", "get", "lab-2"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
+        (["labs", "destroy", "lab-2"], {"LABOS_API_URL": "http://127.0.0.1:8005"}),
     ]

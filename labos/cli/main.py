@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from typing import Any
 
 import httpx
@@ -86,6 +88,43 @@ def _parse_json_object(option_name: str, raw_value: str | None) -> dict[str, Any
         typer.echo(f"{option_name} must be a valid JSON object.", err=True)
         raise typer.Exit(code=1)
     return parsed
+
+
+def _run_cli_command(
+    args: list[str],
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> str:
+    env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
+    result = subprocess.run(
+        [sys.executable, "-m", "labos.cli.main", *args],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        if not detail:
+            detail = f"CLI command failed: {' '.join(args)}"
+        typer.echo(detail, err=True)
+        raise typer.Exit(code=1)
+    return result.stdout
+
+
+def _run_cli_json_command(
+    args: list[str],
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> Any:
+    raw_output = _run_cli_command(args, env_overrides=env_overrides)
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError as exc:
+        typer.echo(f"CLI command did not return valid JSON: {' '.join(args)}", err=True)
+        raise typer.Exit(code=1) from exc
 
 
 @app.command()
@@ -200,25 +239,30 @@ def release_smoke_cli(
     ),
 ) -> None:
     """Exercise representative CLI commands against a live API and capture one JSON proof."""
-    help_verified = bool(app.info.help and "LabOS operator CLI" in app.info.help)
-    profiles = _request_json(api_url=api_url, method="GET", path="/profiles")
-    created_lab = _request_json(
-        api_url=api_url,
-        method="POST",
-        path="/labs",
-        payload={
-            "profile_name": profile,
-            "requester_type": requester_type,
-            "base_snapshot_id": None,
-            "metadata": {"source": "release-smoke-cli"},
-        },
+    env_overrides = {"LABOS_API_URL": _normalize_api_url(api_url)}
+    help_output = _run_cli_command(["--help"], env_overrides=env_overrides)
+    help_verified = "LabOS operator CLI" in help_output
+    profiles = _run_cli_json_command(["profiles", "list"], env_overrides=env_overrides)
+    created_lab = _run_cli_json_command(
+        [
+            "labs",
+            "create",
+            profile,
+            "--requester-type",
+            requester_type,
+            "--metadata",
+            json.dumps({"source": "release-smoke-cli"}),
+        ],
+        env_overrides=env_overrides,
     )
-    labs = _request_json(api_url=api_url, method="GET", path="/labs")
-    retrieved_lab = _request_json(api_url=api_url, method="GET", path=f"/labs/{created_lab['id']}")
-    destroyed_lab = _request_json(
-        api_url=api_url,
-        method="DELETE",
-        path=f"/labs/{created_lab['id']}",
+    labs = _run_cli_json_command(["labs", "list"], env_overrides=env_overrides)
+    retrieved_lab = _run_cli_json_command(
+        ["labs", "get", created_lab["id"]],
+        env_overrides=env_overrides,
+    )
+    destroyed_lab = _run_cli_json_command(
+        ["labs", "destroy", created_lab["id"]],
+        env_overrides=env_overrides,
     )
 
     _emit_json(
@@ -569,3 +613,7 @@ def scheduler_dispatch_next(
 ) -> None:
     """Dispatch the next eligible scheduler job through the control plane."""
     _emit_json(_request_json(api_url=api_url, method="POST", path="/scheduler/jobs/dispatch-next"))
+
+
+if __name__ == "__main__":
+    app()
