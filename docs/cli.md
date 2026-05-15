@@ -34,6 +34,7 @@ labos approvals deny <approval-id> --actor operator --comment "artifact denied"
 labos events list
 labos release readiness
 labos release smoke-docs
+labos release smoke-cli
 labos runtime probe-docker
 labos scheduler enqueue create-lab --requester-id nightly-safe-dev --profile safe-dev
 labos scheduler enqueue start-run --requester-id nightly-run --lab-id <lab-id> --command "python -m pytest"
@@ -85,10 +86,13 @@ labos scheduler dispatch-next
 ### `labos release`
 - `readiness`
 - `smoke-docs [--api-url <url>] [--profile <profile-name>] [--requester-type human|agent|scheduler]`
+- `smoke-cli [--api-url <url>] [--profile <profile-name>] [--requester-type human|agent|scheduler]`
 
 `readiness` reports the current Phase 18 release blockers as JSON. Today it checks whether the Git working tree is clean and whether the optional Docker runtime smoke can run on the current host, then exits non-zero while any blocker remains.
 
 `smoke-docs` exercises the documented release smoke flow against a live API: `GET /health`, `GET /profiles`, `POST /labs`, `GET /labs`, and `DELETE /labs/<id>`. It emits one JSON summary so operators can capture evidence for the docs/API release gate without manually stitching together multiple commands.
+
+`smoke-cli` captures the representative CLI release proof: it verifies the top-level help surface is present, then exercises the same public API flow behind `labos profiles list`, `labos labs create`, `labos labs list`, `labos labs get`, and `labos labs destroy`. The output is one JSON summary suitable for the checklist's CLI-smoke evidence slot.
 
 ### `labos runtime`
 - `probe-docker`

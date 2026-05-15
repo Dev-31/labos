@@ -19,6 +19,7 @@ All notable changes to LabOS will be documented in this file.
 - Contributor and operator docs now track the actual public-core behavior instead of implying hidden runtime guarantees.
 - Release-prep tooling now includes `labos runtime probe-docker` and matching `make probe-docker` / `make smoke-docker` entrypoints so Docker readiness failures surface before the optional runtime smoke is attempted.
 - Release-prep tooling now also includes `labos release readiness`, which reports the current Git/Docker blockers before attempting the remaining `v0.1.0` gate checks.
+- Release-prep tooling now also includes `labos release smoke-cli` and `make smoke-cli`, which capture one JSON proof for the representative CLI help/profile/create/list/get/destroy flow against a live API.
 
 ### Honesty boundary
 - LabOS `v0.1.0` is the **public core** release, not a promise of full runtime orchestration.

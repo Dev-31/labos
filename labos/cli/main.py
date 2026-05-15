@@ -186,6 +186,64 @@ def release_smoke_docs(
     )
 
 
+@release_app.command("smoke-cli")
+def release_smoke_cli(
+    api_url: str = typer.Option(
+        DEFAULT_API_URL,
+        envvar="LABOS_API_URL",
+        help="LabOS API base URL.",
+    ),
+    profile: str = typer.Option("safe-dev", help="Profile to use for the release CLI smoke lab."),
+    requester_type: str = typer.Option(
+        "human",
+        help="Requester type recorded for the temporary release CLI smoke lab.",
+    ),
+) -> None:
+    """Exercise representative CLI commands against a live API and capture one JSON proof."""
+    help_verified = bool(app.info.help and "LabOS operator CLI" in app.info.help)
+    profiles = _request_json(api_url=api_url, method="GET", path="/profiles")
+    created_lab = _request_json(
+        api_url=api_url,
+        method="POST",
+        path="/labs",
+        payload={
+            "profile_name": profile,
+            "requester_type": requester_type,
+            "base_snapshot_id": None,
+            "metadata": {"source": "release-smoke-cli"},
+        },
+    )
+    labs = _request_json(api_url=api_url, method="GET", path="/labs")
+    retrieved_lab = _request_json(api_url=api_url, method="GET", path=f"/labs/{created_lab['id']}")
+    destroyed_lab = _request_json(
+        api_url=api_url,
+        method="DELETE",
+        path=f"/labs/{created_lab['id']}",
+    )
+
+    _emit_json(
+        {
+            "api_url": _normalize_api_url(api_url),
+            "commands_validated": [
+                "labos --help",
+                "labos profiles list",
+                f"labos labs create {profile} --requester-type {requester_type}",
+                "labos labs list",
+                f"labos labs get {created_lab['id']}",
+                f"labos labs destroy {created_lab['id']}",
+            ],
+            "created_lab": created_lab,
+            "destroyed_lab": destroyed_lab,
+            "help_verified": help_verified,
+            "listed_lab_count": len(labs),
+            "profile_names": [item["name"] for item in profiles],
+            "profile_requested": profile,
+            "requester_type": requester_type,
+            "retrieved_lab": retrieved_lab,
+        }
+    )
+
+
 @profiles_app.command("list")
 def profiles_list(
     api_url: str = typer.Option(
