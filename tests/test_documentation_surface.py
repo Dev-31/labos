@@ -76,11 +76,13 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "daemon_error" in release_checklist
     assert "labos release smoke-docs" in release_checklist
     assert "labos release smoke-cli" in release_checklist
+    assert "labos release smoke-local" in release_checklist
     assert "labos release smoke-docker" in release_checklist
     assert "make release-readiness" in release_checklist
     assert "make release-evidence" in release_checklist
     assert "make smoke-docs" in release_checklist
     assert "make smoke-cli" in release_checklist
+    assert "make smoke-local" in release_checklist
     assert "make smoke-docker" in release_checklist
     assert "docker integration smoke" in readme.lower()
     assert "labos runtime probe-docker" in readme
@@ -93,9 +95,11 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "daemon_error" in readme
     assert "labos release smoke-docs" in readme
     assert "labos release smoke-cli" in readme
+    assert "labos release smoke-local" in readme
     assert "labos release smoke-docker" in readme
     assert "make release-readiness" in readme
     assert "make release-evidence" in readme
+    assert "make smoke-local" in readme
     assert "make smoke-docker" in readme
     assert "labos release readiness" in cli_guide
     assert "labos release evidence" in cli_guide
@@ -106,14 +110,17 @@ def test_release_docs_cover_v0_1_readiness_and_current_scope() -> None:
     assert "daemon_error" in cli_guide
     assert "labos release smoke-docs" in cli_guide
     assert "labos release smoke-cli" in cli_guide
+    assert "labos release smoke-local" in cli_guide
     assert "labos release smoke-docker" in cli_guide
     assert "make release-readiness" in cli_guide
     assert "make release-evidence" in cli_guide
+    assert "make smoke-local" in cli_guide
     assert "make smoke-docker" in cli_guide
     assert "release-readiness:" in makefile
     assert "release-evidence:" in makefile
     assert "smoke-docs:" in makefile
     assert "smoke-cli:" in makefile
+    assert "smoke-local:" in makefile
     assert "smoke-docker:" in makefile
 
     assert "# Changelog" in changelog

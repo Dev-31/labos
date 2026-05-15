@@ -19,6 +19,7 @@ labos release readiness
 labos release evidence
 labos release smoke-docs
 labos release smoke-cli
+labos release smoke-local
 labos release smoke-docker
 labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
@@ -26,6 +27,7 @@ make release-readiness
 make release-evidence
 make smoke-docs
 make smoke-cli
+make smoke-local
 make smoke-docker
 make probe-docker
 ```
@@ -36,7 +38,9 @@ Run `labos release readiness` before the Docker-specific checks so the current b
 
 Run `labos release evidence` when you want the evidence-template fields pre-filled with the current commit SHA, standard verification commands, docs surface, current Docker readiness detail, and the same `next_action` / `pending_steps` / `tag_ready` fields used to justify whether tagging is allowed. Preserve the nested `docker.cli_path` and `docker.daemon_error` values in the release record when Docker is the remaining blocker.
 
-If you prefer Make wrappers during release prep, the repo exposes one-step aliases for the same helper surface: `make release-readiness`, `make release-evidence`, `make smoke-docs`, `make smoke-cli`, `make smoke-docker`, and `make probe-docker`.
+If you prefer Make wrappers during release prep, the repo exposes one-step aliases for the same helper surface: `make release-readiness`, `make release-evidence`, `make smoke-docs`, `make smoke-cli`, `make smoke-local`, `make smoke-docker`, and `make probe-docker`.
+
+Use `labos release smoke-local` when you want one bounded command to bootstrap a fresh local SQLite-backed API, run the docs and CLI release smokes against that temporary server, and capture the current Docker smoke payload in the same JSON record.
 
 Use `labos release smoke-docker` when you want one JSON proof for the runtime-side release gate. It first reports the Docker probe result and only runs the real-Docker pytest smoke when the host is actually ready.
 
@@ -52,6 +56,7 @@ If the host does not have a reachable Docker daemon, do not check off the Docker
 - [ ] Start local dependencies from scratch (`docker compose up -d postgres`).
 - [ ] Apply migrations against a fresh database (`uv run alembic upgrade head`).
 - [ ] Start the API (`uv run uvicorn labos.api.app:app`).
+- [ ] Optionally rehearse the full local release smoke bundle with `labos release smoke-local` before collecting final per-step evidence.
 - [ ] Re-run quickstart/API smoke commands from the docs and verify the responses (`labos release smoke-docs` can capture one JSON proof for the health/profile/create/list/destroy flow and performs best-effort cleanup if a later validation step fails).
 - [ ] Validate CLI help and representative commands against a live API (`labos release smoke-cli` can capture one JSON proof for the help/profile/create/list/get/destroy flow by invoking the actual CLI commands, and it also attempts cleanup if the validation fails after lab creation).
 - [ ] Run `labos release readiness` and record any remaining blockers.

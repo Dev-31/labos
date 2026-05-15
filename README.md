@@ -92,6 +92,7 @@ make release-readiness
 make release-evidence
 make smoke-docs
 make smoke-cli
+make smoke-local
 make smoke-docker
 ```
 
@@ -112,6 +113,7 @@ labos release readiness
 labos release evidence
 labos release smoke-docs
 labos release smoke-cli
+labos release smoke-local
 labos release smoke-docker
 labos runtime probe-docker
 uv run pytest -q tests/integration/test_docker_runtime_smoke.py
@@ -124,6 +126,7 @@ make release-readiness
 make release-evidence
 make smoke-docs
 make smoke-cli
+make smoke-local
 make smoke-docker
 make probe-docker
 ```
@@ -134,7 +137,9 @@ Run `labos release evidence` when you want the release-checklist evidence templa
 
 Then run `labos release smoke-docs` against a live API to exercise the documented health/profile/create/list/destroy flow in one command. It creates a temporary governed lab record with a valid control-plane requester type and destroys it again so the release operator can capture one JSON proof for the docs/API smoke gate. If a later validation step fails after creation, the command still performs best-effort cleanup before surfacing the failure.
 
-Then run `labos release smoke-cli` against that same API to capture one JSON proof for the CLI help/profile/create/list/get/destroy flow. It invokes those representative `labos` commands through the CLI entrypoint itself, so the release checklist gets proof of the real operator surface instead of a direct helper shortcut. If one of the later validation commands fails after creation, LabOS still attempts to destroy the temporary lab record before returning the error.
+Then run `labos release smoke-cli` against that same API to capture one JSON proof for the CLI help/profile/create/list/get/destroy flow. It invokes those representative `labos` commands through the CLI entrypoint itself, so the release checklist gets proof of the real operator surface instead of a direct helper shortcut. If one of the later validation commands fails after lab creation, LabOS still attempts to destroy the temporary lab record before returning the error.
+
+If you want LabOS to bootstrap its own temporary local API for those release smokes, run `labos release smoke-local`. It creates a temporary SQLite database and managed storage root, starts a local API on a free localhost port, runs `smoke-docs` and `smoke-cli` against that API, then reports the same Docker smoke payload in one JSON object. The command exits non-zero when the Docker gate is not actually ready, so it stays honest about the remaining Phase 18 blocker instead of faking a fully green release host.
 
 Then run `labos release smoke-docker` for the runtime-specific evidence payload. It first reuses the same Docker readiness probe and only runs the real-Docker pytest smoke when the host is actually ready, returning one JSON object with the probe result and pytest output.
 

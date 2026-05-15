@@ -2,15 +2,23 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import socket
 import subprocess
 import sys
+import tempfile
+import time
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 import typer
 
 from labos import __version__
+from labos.db.schema import Base
+from labos.db.session import build_engine
 from labos.runtimes.docker_probe import probe_docker_environment
 
 DEFAULT_API_URL = "http://127.0.0.1:8000"
@@ -215,6 +223,114 @@ def _run_external_command(args: list[str]) -> str:
         typer.echo(detail, err=True)
         raise typer.Exit(code=1)
     return result.stdout
+
+
+def _find_free_tcp_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+
+def _prepare_release_smoke_local_environment() -> tuple[str, dict[str, str]]:
+    root = Path(tempfile.mkdtemp(prefix="labos-release-smoke-"))
+    port = _find_free_tcp_port()
+    api_url = f"http://127.0.0.1:{port}"
+    return (
+        api_url,
+        {
+            "LABOS_DATABASE_URL": f"sqlite+pysqlite:///{root / 'labos-release.db'}",
+            "LABOS_MANAGED_STORAGE_ROOT": str(root / "storage"),
+            "LABOS_RELEASE_SMOKE_ROOT": str(root),
+        },
+    )
+
+
+
+def _initialize_database(database_url: str) -> None:
+    engine = build_engine(database_url)
+    Base.metadata.create_all(engine)
+
+
+
+def _start_local_api_server(
+    *,
+    api_url: str,
+    env_overrides: dict[str, str],
+) -> subprocess.Popen[str]:
+    parsed = urlparse(api_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port
+    if port is None:
+        typer.echo(f"release smoke local API URL must include a port: {api_url}", err=True)
+        raise typer.Exit(code=1)
+
+    env = os.environ.copy()
+    env.update(env_overrides)
+    return subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "labos.api.app:app",
+            "--host",
+            host,
+            "--port",
+            str(port),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+
+
+def _wait_for_api_ready(api_url: str, *, timeout_seconds: float = 15.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    last_error: str | None = None
+    while time.monotonic() < deadline:
+        try:
+            with httpx.Client(base_url=_normalize_api_url(api_url), timeout=2.0) as client:
+                response = client.get("/health")
+                response.raise_for_status()
+                return
+        except httpx.HTTPError as exc:
+            last_error = str(exc)
+            time.sleep(0.2)
+
+    detail = last_error or "timed out waiting for local LabOS API"
+    typer.echo(detail, err=True)
+    raise typer.Exit(code=1)
+
+
+
+def _stop_process(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+
+def _release_smoke_docker_payload() -> dict[str, Any]:
+    command = ["uv", "run", "pytest", "-q", "tests/integration/test_docker_runtime_smoke.py"]
+    docker_probe = probe_docker_environment()
+    output: str | None = None
+    if docker_probe.ready:
+        output = _run_external_command(command).strip()
+
+    return {
+        "command": " ".join(command),
+        "docker": _docker_probe_payload(docker_probe),
+        "output": output,
+        "ready": docker_probe.ready,
+    }
 
 
 def _best_effort_destroy_lab_via_api(*, api_url: str, lab_id: str) -> dict[str, Any] | None:
@@ -431,21 +547,47 @@ def release_smoke_cli(
 @release_app.command("smoke-docker")
 def release_smoke_docker() -> None:
     """Run the optional real-Docker release smoke and emit one JSON proof payload."""
-    command = ["uv", "run", "pytest", "-q", "tests/integration/test_docker_runtime_smoke.py"]
-    docker_probe = probe_docker_environment()
-    output: str | None = None
-    if docker_probe.ready:
-        output = _run_external_command(command).strip()
+    payload = _release_smoke_docker_payload()
+    _emit_json(payload)
+    if not payload["ready"]:
+        raise typer.Exit(code=1)
 
-    _emit_json(
-        {
-            "command": " ".join(command),
-            "docker": _docker_probe_payload(docker_probe),
-            "output": output,
-            "ready": docker_probe.ready,
-        }
-    )
-    if not docker_probe.ready:
+
+@release_app.command("smoke-local")
+def release_smoke_local() -> None:
+    """Boot a temporary local API, run release smokes, and report Docker honestly."""
+    api_url, env_overrides = _prepare_release_smoke_local_environment()
+    database_url = env_overrides["LABOS_DATABASE_URL"]
+    managed_storage_root = env_overrides["LABOS_MANAGED_STORAGE_ROOT"]
+    process: subprocess.Popen[str] | None = None
+    cleanup_root = env_overrides.get("LABOS_RELEASE_SMOKE_ROOT")
+
+    try:
+        _initialize_database(database_url)
+        process = _start_local_api_server(api_url=api_url, env_overrides=env_overrides)
+        _wait_for_api_ready(api_url)
+        docs_smoke = _run_cli_json_command(["release", "smoke-docs", "--api-url", api_url])
+        cli_smoke = _run_cli_json_command(["release", "smoke-cli", "--api-url", api_url])
+        docker_smoke = _release_smoke_docker_payload()
+    finally:
+        if process is not None:
+            _stop_process(process)
+        if cleanup_root:
+            shutil.rmtree(cleanup_root, ignore_errors=True)
+
+    payload = {
+        "api_url": api_url,
+        "cli_smoke": cli_smoke,
+        "docker_smoke": docker_smoke,
+        "docs_smoke": docs_smoke,
+        "environment": {
+            "database_url": database_url,
+            "managed_storage_root": managed_storage_root,
+        },
+        "ready": bool(docker_smoke["ready"]),
+    }
+    _emit_json(payload)
+    if not payload["ready"]:
         raise typer.Exit(code=1)
 
 

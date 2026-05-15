@@ -499,3 +499,172 @@ def test_release_smoke_docker_fails_honestly_when_probe_is_not_ready(monkeypatch
         "output": None,
         "ready": False,
     }
+
+
+def test_release_smoke_local_bootstraps_temp_api_and_runs_release_smokes(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    started: list[tuple[str, str]] = []
+    waited_on: list[str] = []
+    stopped: list[str] = []
+    cli_calls: list[tuple[list[str], dict[str, str] | None]] = []
+
+    class DummyProcess:
+        def __init__(self) -> None:
+            self.returncode = None
+
+    def fake_prepare_environment() -> tuple[str, dict[str, str]]:
+        return (
+            "http://127.0.0.1:8017",
+            {
+                "LABOS_DATABASE_URL": f"sqlite+pysqlite:///{tmp_path / 'labos-release.db'}",
+                "LABOS_MANAGED_STORAGE_ROOT": str(tmp_path / 'storage'),
+            },
+        )
+
+    def fake_initialize_database(database_url: str) -> None:
+        started.append(("db", database_url))
+
+    def fake_start_local_api_server(*, api_url: str, env_overrides: dict[str, str]) -> DummyProcess:
+        started.append((api_url, env_overrides["LABOS_DATABASE_URL"]))
+        return DummyProcess()
+
+    def fake_wait_for_api_ready(api_url: str) -> None:
+        waited_on.append(api_url)
+
+    def fake_run_cli_json_command(
+        args: list[str],
+        *,
+        env_overrides: dict[str, str] | None = None,
+    ) -> Any:
+        cli_calls.append((args, env_overrides))
+        if args == ["release", "smoke-docs", "--api-url", "http://127.0.0.1:8017"]:
+            return {"health": {"status": "ok"}, "requester_type": "human"}
+        if args == ["release", "smoke-cli", "--api-url", "http://127.0.0.1:8017"]:
+            return {"help_verified": True, "listed_lab_count": 1}
+        raise AssertionError(f"unexpected CLI command: {args}")
+
+    def fake_release_smoke_docker_payload() -> dict[str, Any]:
+        return {
+            "command": "uv run pytest -q tests/integration/test_docker_runtime_smoke.py",
+            "docker": {
+                "cli_present": True,
+                "cli_path": "/usr/bin/docker",
+                "daemon_reachable": True,
+                "daemon_error": None,
+                "detail": "docker CLI and daemon are available",
+                "ready": True,
+            },
+            "output": "1 passed in 0.42s",
+            "ready": True,
+        }
+
+    def fake_stop_process(process: DummyProcess) -> None:
+        del process
+        stopped.append("stopped")
+
+    monkeypatch.setattr(
+        "labos.cli.main._prepare_release_smoke_local_environment",
+        fake_prepare_environment,
+    )
+    monkeypatch.setattr("labos.cli.main._initialize_database", fake_initialize_database)
+    monkeypatch.setattr("labos.cli.main._start_local_api_server", fake_start_local_api_server)
+    monkeypatch.setattr("labos.cli.main._wait_for_api_ready", fake_wait_for_api_ready)
+    monkeypatch.setattr("labos.cli.main._run_cli_json_command", fake_run_cli_json_command)
+    monkeypatch.setattr(
+        "labos.cli.main._release_smoke_docker_payload",
+        fake_release_smoke_docker_payload,
+    )
+    monkeypatch.setattr("labos.cli.main._stop_process", fake_stop_process)
+
+    result = runner.invoke(app, ["release", "smoke-local"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {
+        "api_url": "http://127.0.0.1:8017",
+        "cli_smoke": {"help_verified": True, "listed_lab_count": 1},
+        "docker_smoke": {
+            "command": "uv run pytest -q tests/integration/test_docker_runtime_smoke.py",
+            "docker": {
+                "cli_present": True,
+                "cli_path": "/usr/bin/docker",
+                "daemon_reachable": True,
+                "daemon_error": None,
+                "detail": "docker CLI and daemon are available",
+                "ready": True,
+            },
+            "output": "1 passed in 0.42s",
+            "ready": True,
+        },
+        "docs_smoke": {"health": {"status": "ok"}, "requester_type": "human"},
+        "environment": {
+            "database_url": f"sqlite+pysqlite:///{tmp_path / 'labos-release.db'}",
+            "managed_storage_root": str(tmp_path / 'storage'),
+        },
+        "ready": True,
+    }
+    assert started == [
+        ("db", f"sqlite+pysqlite:///{tmp_path / 'labos-release.db'}"),
+        ("http://127.0.0.1:8017", f"sqlite+pysqlite:///{tmp_path / 'labos-release.db'}"),
+    ]
+    assert waited_on == ["http://127.0.0.1:8017"]
+    assert cli_calls == [
+        (["release", "smoke-docs", "--api-url", "http://127.0.0.1:8017"], None),
+        (["release", "smoke-cli", "--api-url", "http://127.0.0.1:8017"], None),
+    ]
+    assert stopped == ["stopped"]
+
+
+def test_release_smoke_local_stops_temp_api_and_fails_when_docker_smoke_is_blocked(
+    monkeypatch, tmp_path
+) -> None:
+    stopped: list[str] = []
+
+    class DummyProcess:
+        def __init__(self) -> None:
+            self.returncode = None
+
+    monkeypatch.setattr(
+        "labos.cli.main._prepare_release_smoke_local_environment",
+        lambda: (
+            "http://127.0.0.1:8018",
+            {
+                "LABOS_DATABASE_URL": f"sqlite+pysqlite:///{tmp_path / 'labos-release.db'}",
+                "LABOS_MANAGED_STORAGE_ROOT": str(tmp_path / 'storage'),
+            },
+        ),
+    )
+    monkeypatch.setattr("labos.cli.main._initialize_database", lambda database_url: None)
+    monkeypatch.setattr(
+        "labos.cli.main._start_local_api_server",
+        lambda *, api_url, env_overrides: DummyProcess(),
+    )
+    monkeypatch.setattr("labos.cli.main._wait_for_api_ready", lambda api_url: None)
+    monkeypatch.setattr(
+        "labos.cli.main._run_cli_json_command",
+        lambda args, env_overrides=None: {"ok": True},
+    )
+    monkeypatch.setattr(
+        "labos.cli.main._release_smoke_docker_payload",
+        lambda: {
+            "command": "uv run pytest -q tests/integration/test_docker_runtime_smoke.py",
+            "docker": {
+                "cli_present": False,
+                "cli_path": None,
+                "daemon_reachable": False,
+                "daemon_error": None,
+                "detail": "docker CLI is not installed or not on PATH",
+                "ready": False,
+            },
+            "output": None,
+            "ready": False,
+        },
+    )
+    monkeypatch.setattr("labos.cli.main._stop_process", lambda process: stopped.append("stopped"))
+
+    result = runner.invoke(app, ["release", "smoke-local"])
+
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["ready"] is False
+    assert stopped == ["stopped"]
